@@ -132,9 +132,9 @@ uv run leeway --api-format openai --base-url https://api.openai.com/v1
 ### Try the Example Workflow
 
 ```bash
-# Plan and scaffold a new project using all workflow features
+# Health check on any codebase — no input needed, low token usage
 uv run leeway
-> /project-kickoff a REST API for a todo app in Python with FastAPI
+> /code-health
 ```
 
 ---
@@ -267,31 +267,30 @@ All matching branches run concurrently. All triggered branches must complete bef
 
 ### Full Example
 
-See [`.leeway/workflows/project-kickoff.yaml`](.leeway/workflows/project-kickoff.yaml) — all five patterns in one workflow with skills, hooks, and approval gates:
+See [`.leeway/workflows/code-health.yaml`](.leeway/workflows/code-health.yaml) — all five patterns in one workflow with skills, hooks, and approval gates:
 
 ```
-       ┌─────────────────┐
-       │  clarify start  │
-       └─────────────────┘
-               │
-               ▼
-        ┌────────────┐
-        │  research  │◄──┐ [dig_deeper]
-        └────────────┘   │
-               ├─────────┘
-               │ [ready]
-               ▼
-╔══════════════════════════════════════════╗
-║           design (parallel)              ║
-╠──────────────────────────────────────────╣
-║ architecture | dependencies | security*  ║
-║              | testing                   ║
-╚══════════════════════════════════════════╝
-               │
-               ▼
-       ┌──────────────┐
-       │ scaffold end │
-       └──────────────┘
+    ┌────────────┐
+    │ scan start │    linear, auto
+    └────────────┘
+           │
+           ▼
+     ┌──────────┐
+     │  triage  │◄──┐ [dig_deeper]
+     └──────────┘   │
+           ├────────┘
+           │ [ready]
+           ▼
+╔═══════════════════════════════════╗
+║       review (parallel)           ║
+╠═══════════════════════════════════╣
+║ quality | security* | docs        ║
+╚═══════════════════════════════════╝
+           │
+           ▼
+    ┌─────────────┐
+    │ report end  │
+    └─────────────┘
 ```
 
 ### Workflow Properties
@@ -363,24 +362,22 @@ The `parallel` block itself also accepts a `timeout` (default `600` seconds) for
 ### Workflow Progress
 
 ```
-▶ Starting workflow 'project-kickoff' at node 'clarify'
-  ● Node 'clarify' — 0 tools, max 3 turns
-  ⇢ Transition → 'research'
-  ● Node 'research' — 3 tools, max 10 turns
-  ⇢ Signal 'ready' → moving to 'design'
-  || Parallel node 'design' — 4 branches
-  |  Branch 'architecture': starting (1 tools, max 6 turns)
-  |  Branch 'dependencies': starting (1 tools, max 5 turns)
+▶ Starting workflow 'code-health' at node 'scan'
+  ● Node 'scan' — 2 tools, max 3 turns
+  ⇢ Transition → 'triage'
+  ● Node 'triage' — 2 tools, max 4 turns
+  ⇢ Signal 'ready' → moving to 'review'
+  || Parallel node 'review' — 3 branches
+  |  Branch 'quality': starting (1 tools, max 3 turns)
   |  Branch 'security': approved
-  |  Branch 'security': starting (1 tools, max 5 turns)
-  |  Branch 'testing': starting (1 tools, max 5 turns)
-  |  Branch 'architecture': completed (4 turns)
-  |  Branch 'testing': completed (3 turns)
-  |  Branch 'dependencies': completed (3 turns)
-  |  Branch 'security': completed (4 turns)
-  || All branches complete → 'scaffold'
-  ● Node 'scaffold' — 4 tools, max 15 turns
-✓ Workflow complete. Path: clarify → research → design → scaffold
+  |  Branch 'security': starting (1 tools, max 3 turns)
+  |  Branch 'docs': starting (1 tools, max 3 turns)
+  |  Branch 'quality': completed (2 turns)
+  |  Branch 'docs': completed (2 turns)
+  |  Branch 'security': completed (3 turns)
+  || All branches complete → 'report'
+  ● Node 'report' — 0 tools, max 2 turns
+✓ Workflow complete. Path: scan → triage → review → report
 ```
 
 ---
@@ -457,7 +454,7 @@ This project includes 3 skills in [`.leeway/skills/`](.leeway/skills/):
 | Skill | Description | References | Used by |
 |-------|-------------|------------|---------|
 | [`coding-standards`](.leeway/skills/coding-standards/SKILL.md) | Coding standards checklist | `references/python.md`, `references/typescript.md` | Global (all nodes) |
-| [`code-review`](.leeway/skills/code-review/SKILL.md) | Quality review patterns | `references/checklist.md` | `architecture` branch |
+| [`code-review`](.leeway/skills/code-review/SKILL.md) | Quality review patterns | `references/checklist.md` | `quality` branch |
 | [`security-audit`](.leeway/skills/security-audit/SKILL.md) | Security vulnerability audit | `references/owasp.md` | `security` branch |
 
 ### How Progressive Disclosure Works
@@ -720,7 +717,7 @@ uv run pytest -q  # Run all tests
 ```
 .leeway/               # Project-level configuration (auto-discovered)
   workflows/              # YAML workflow definitions
-    project-kickoff.yaml  # Example: all features in one workflow
+    code-health.yaml      # Example: zero-input codebase health check
   skills/                 # Folder-per-skill with progressive disclosure
     coding-standards/     # SKILL.md + references/python.md, typescript.md
     code-review/          # SKILL.md + references/checklist.md
