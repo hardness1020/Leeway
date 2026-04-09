@@ -3,11 +3,11 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 
-from agenttree.workflow.engine import WorkflowEngine, _branch_result_to_dict
-from agenttree.workflow.evaluator import NodeResult, _matches
-from agenttree.workflow.parallel import BranchResult, BranchSpec, ParallelSpec
-from agenttree.workflow.signal_tool import WorkflowSignalInput
-from agenttree.workflow.types import ConditionSpec, ConditionType, NodeSpec
+from leeway.workflow.engine import WorkflowEngine, _branch_result_to_dict
+from leeway.workflow.evaluator import NodeResult, _matches
+from leeway.workflow.parallel import BranchResult, BranchSpec, ParallelSpec
+from leeway.workflow.signal_tool import WorkflowSignalInput
+from leeway.workflow.types import ConditionSpec, ConditionType, NodeSpec
 
 
 # -- Condition matching for branches --

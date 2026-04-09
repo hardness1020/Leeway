@@ -2,9 +2,9 @@
 
 from pathlib import Path
 
-from agenttree.cron.types import ShellAction
-from agenttree.triggers.registry import TriggerRegistry
-from agenttree.triggers.types import TriggerDefinition
+from leeway.cron.types import ShellAction
+from leeway.triggers.registry import TriggerRegistry
+from leeway.triggers.types import TriggerDefinition
 
 
 def _make_trigger(name: str = "test") -> TriggerDefinition:

@@ -5,9 +5,9 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from agenttree.mcp.adapter import McpToolAdapter, _build_input_model, register_mcp_tools
-from agenttree.mcp.client import McpClientManager
-from agenttree.tools.base import ToolExecutionContext, ToolRegistry
+from leeway.mcp.adapter import McpToolAdapter, _build_input_model, register_mcp_tools
+from leeway.mcp.client import McpClientManager
+from leeway.tools.base import ToolExecutionContext, ToolRegistry
 
 
 def test_build_input_model_basic():

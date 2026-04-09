@@ -4,16 +4,16 @@ from pathlib import Path
 
 import pytest
 
-from agenttree.agents.spawner import AgentSpawner
-from agenttree.agents.types import AgentSpec
-from agenttree.tasks.manager import BackgroundTaskManager
-from agenttree.tasks.store import TaskStore
-from agenttree.tasks.types import TaskState
+from leeway.agents.spawner import AgentSpawner
+from leeway.agents.types import AgentSpec
+from leeway.tasks.manager import BackgroundTaskManager
+from leeway.tasks.store import TaskStore
+from leeway.tasks.types import TaskState
 
 
 @pytest.fixture
 def spawner(tmp_path: Path, monkeypatch):
-    monkeypatch.setattr("agenttree.tasks.manager.get_data_dir", lambda: tmp_path)
+    monkeypatch.setattr("leeway.tasks.manager.get_data_dir", lambda: tmp_path)
     store = TaskStore(tmp_path / "tasks.json")
     manager = BackgroundTaskManager(store=store)
     return AgentSpawner(task_manager=manager, cwd=str(tmp_path))

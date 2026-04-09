@@ -2,8 +2,8 @@
 
 from pathlib import Path
 
-from agenttree.memory.store import MemoryStore
-from agenttree.memory.types import MemoryEntry
+from leeway.memory.store import MemoryStore
+from leeway.memory.types import MemoryEntry
 
 
 def test_save_and_get(tmp_path: Path):

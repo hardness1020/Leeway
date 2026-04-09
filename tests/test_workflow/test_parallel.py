@@ -1,8 +1,8 @@
 """Tests for parallel execution models."""
 
 import pytest
-from agenttree.workflow.parallel import BranchSpec, ParallelSpec, BranchResult
-from agenttree.workflow.types import ConditionSpec, ConditionType, NodeSpec, WorkflowDefinition, EdgeSpec
+from leeway.workflow.parallel import BranchSpec, ParallelSpec, BranchResult
+from leeway.workflow.types import ConditionSpec, ConditionType, NodeSpec, WorkflowDefinition, EdgeSpec
 
 
 # -- BranchSpec --

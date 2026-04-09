@@ -1,8 +1,8 @@
 """Tests for workflow transition evaluator."""
 
-from agenttree.workflow.evaluator import NodeResult, evaluate_transitions
-from agenttree.workflow.signal_tool import WorkflowSignalInput
-from agenttree.workflow.types import ConditionSpec, EdgeSpec, NodeSpec
+from leeway.workflow.evaluator import NodeResult, evaluate_transitions
+from leeway.workflow.signal_tool import WorkflowSignalInput
+from leeway.workflow.types import ConditionSpec, EdgeSpec, NodeSpec
 
 
 def test_signal_match():

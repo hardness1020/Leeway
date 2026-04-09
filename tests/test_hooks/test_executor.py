@@ -2,9 +2,9 @@
 
 import pytest
 
-from agenttree.hooks.executor import HookExecutor
-from agenttree.hooks.registry import HookRegistry
-from agenttree.hooks.types import CommandHookDefinition, HookEvent, HookMatchSpec
+from leeway.hooks.executor import HookExecutor
+from leeway.hooks.registry import HookRegistry
+from leeway.hooks.types import CommandHookDefinition, HookEvent, HookMatchSpec
 
 
 @pytest.fixture

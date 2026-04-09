@@ -1,7 +1,7 @@
 """Tests for workflow graph renderer."""
 
-from agenttree.workflow.graph import render_workflow_graph, render_workflow_list
-from agenttree.workflow.types import (
+from leeway.workflow.graph import render_workflow_graph, render_workflow_list
+from leeway.workflow.types import (
     ConditionSpec,
     EdgeSpec,
     NodeSpec,
@@ -473,7 +473,7 @@ def test_explore_codebase_junction_preserves_downward_edge():
 
 def test_layer_assignment_longest_path():
     """Nodes reachable via longer paths should be at deeper layers."""
-    from agenttree.workflow.graph import _assign_layers
+    from leeway.workflow.graph import _assign_layers
 
     wf = _make_explore_codebase_workflow()
     layers = _assign_layers(wf)
@@ -484,7 +484,7 @@ def test_layer_assignment_longest_path():
 
 
 def test_layer_assignment_diamond():
-    from agenttree.workflow.graph import _assign_layers
+    from leeway.workflow.graph import _assign_layers
 
     wf = _make_diamond_workflow()
     layers = _assign_layers(wf)
@@ -496,7 +496,7 @@ def test_layer_assignment_diamond():
 
 def test_layer_assignment_back_edge():
     """Back-edges should not affect layer assignment of forward-reachable nodes."""
-    from agenttree.workflow.graph import _assign_layers
+    from leeway.workflow.graph import _assign_layers
 
     wf = _make_back_edge_workflow()
     layers = _assign_layers(wf)
@@ -510,7 +510,7 @@ def test_layer_assignment_back_edge():
 
 
 def test_edge_classification_self_loop():
-    from agenttree.workflow.graph import _assign_layers, _classify_edges
+    from leeway.workflow.graph import _assign_layers, _classify_edges
 
     wf = _make_self_loop_workflow()
     layers = _assign_layers(wf)
@@ -520,7 +520,7 @@ def test_edge_classification_self_loop():
 
 
 def test_edge_classification_back_edge():
-    from agenttree.workflow.graph import _assign_layers, _classify_edges
+    from leeway.workflow.graph import _assign_layers, _classify_edges
 
     wf = _make_back_edge_workflow()
     layers = _assign_layers(wf)

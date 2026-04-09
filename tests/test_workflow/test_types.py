@@ -1,7 +1,7 @@
 """Tests for workflow type definitions."""
 
 import pytest
-from agenttree.workflow.types import (
+from leeway.workflow.types import (
     ConditionSpec,
     ConditionType,
     EdgeSpec,

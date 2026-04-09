@@ -2,8 +2,8 @@
 
 from pathlib import Path
 
-from agenttree.cron.store import CronStore
-from agenttree.cron.types import CronJob, CronScheduleSpec, ShellAction
+from leeway.cron.store import CronStore
+from leeway.cron.types import CronJob, CronScheduleSpec, ShellAction
 
 
 def _make_job(name: str = "test-job") -> CronJob:

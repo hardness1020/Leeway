@@ -3,7 +3,7 @@
 import asyncio
 
 import pytest
-from agenttree.workflow.hitl import HitlBroker
+from leeway.workflow.hitl import HitlBroker
 
 
 @pytest.fixture

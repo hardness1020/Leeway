@@ -2,12 +2,12 @@
 
 from unittest.mock import MagicMock
 
-from agenttree.permissions.checker import PermissionChecker
-from agenttree.skills.registry import SkillRegistry
-from agenttree.skills.types import SkillDefinition
-from agenttree.tools.base import BaseTool, ToolRegistry, ToolExecutionContext, ToolResult
-from agenttree.workflow.engine import WorkflowEngine
-from agenttree.workflow.types import EdgeSpec, NodeSpec, WorkflowDefinition
+from leeway.permissions.checker import PermissionChecker
+from leeway.skills.registry import SkillRegistry
+from leeway.skills.types import SkillDefinition
+from leeway.tools.base import BaseTool, ToolRegistry, ToolExecutionContext, ToolResult
+from leeway.workflow.engine import WorkflowEngine
+from leeway.workflow.types import EdgeSpec, NodeSpec, WorkflowDefinition
 
 from pathlib import Path
 from pydantic import BaseModel

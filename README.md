@@ -1,4 +1,4 @@
-<h1 align="center">AgentTree</h1>
+<h1 align="center">Leeway</h1>
 
 <p align="center">
   <strong>Human-defined workflows. AI-powered execution.</strong><br>
@@ -21,18 +21,18 @@
 
 ---
 
-## Why AgentTree?
+## Why Leeway?
 
 Most AI agent tools fall into two extremes:
 
-| | Agent-controlled (e.g. OpenClaw) | Human-designed (e.g. n8n) | **AgentTree** |
+| | Agent-controlled (e.g. OpenClaw) | Human-designed (e.g. n8n) | **Leeway** |
 |---|---|---|---|
 | **Who decides the flow?** | The AI | The human | **Human** (YAML decision trees) |
 | **Who executes steps?** | The AI | Rigid scripts | **AI** (flexible within each node) |
 | **Predictable?** | No — might do anything | Yes — but no AI flexibility | **Yes** — deterministic transitions |
 | **Flexible?** | Yes — but unpredictable | No — locked to the design | **Yes** — AI reasons within bounds |
 
-**AgentTree** gives you the reliability of a state machine with the flexibility of an LLM at each step.
+**Leeway** gives you the reliability of a state machine with the flexibility of an LLM at each step.
 
 ---
 
@@ -112,28 +112,28 @@ Most AI agent tools fall into two extremes:
 
 ```bash
 # Clone and install
-git clone https://github.com/your-org/AgentTree.git
-cd AgentTree
+git clone https://github.com/your-org/Leeway.git
+cd Leeway
 uv sync --extra dev
 
 # Set your API key
 export ANTHROPIC_API_KEY=sk-...
 
 # Launch interactive mode
-uv run agenttree
+uv run leeway
 
 # Or run a single prompt
-uv run agenttree -p "explain this codebase"
+uv run leeway -p "explain this codebase"
 
 # Use OpenAI-compatible provider
-uv run agenttree --api-format openai --base-url https://api.openai.com/v1
+uv run leeway --api-format openai --base-url https://api.openai.com/v1
 ```
 
 ### Try the Example Workflow
 
 ```bash
 # Plan and scaffold a new project using all workflow features
-uv run agenttree
+uv run leeway
 > /project-kickoff a REST API for a todo app in Python with FastAPI
 ```
 
@@ -195,7 +195,7 @@ The **human** defines the graph. The **AI** operates within each node. **Determi
 
 ## Writing Workflows
 
-Place YAML files in `~/.agenttree/workflows/` or `<project>/.agenttree/workflows/`. They are automatically discovered.
+Place YAML files in `~/.leeway/workflows/` or `<project>/.leeway/workflows/`. They are automatically discovered.
 
 ### Five Patterns
 
@@ -267,7 +267,7 @@ All matching branches run concurrently. All triggered branches must complete bef
 
 ### Full Example
 
-See [`.agenttree/workflows/project-kickoff.yaml`](.agenttree/workflows/project-kickoff.yaml) — all five patterns in one workflow with skills, hooks, and approval gates:
+See [`.leeway/workflows/project-kickoff.yaml`](.leeway/workflows/project-kickoff.yaml) — all five patterns in one workflow with skills, hooks, and approval gates:
 
 ```
        ┌─────────────────┐
@@ -365,17 +365,17 @@ Every tool has **Pydantic input validation**, **self-describing JSON Schema**, *
 
 ## Scheduling & Cron
 
-AgentTree includes a standalone cron scheduler daemon for running workflows and commands on a schedule.
+Leeway includes a standalone cron scheduler daemon for running workflows and commands on a schedule.
 
 ```bash
 # Start the scheduler daemon
-uv run agenttree scheduler start
+uv run leeway scheduler start
 
 # Check status
-uv run agenttree scheduler status
+uv run leeway scheduler status
 
 # Stop
-uv run agenttree scheduler stop
+uv run leeway scheduler stop
 ```
 
 **Schedule types:**
@@ -397,7 +397,7 @@ Skills are **folder-per-skill** packages with a `SKILL.md` entry point and optio
 ### Structure
 
 ```
-.agenttree/skills/
+.leeway/skills/
   code-review/
     SKILL.md              # main instructions (loaded first)
     checklist.md          # detailed checklist (loaded on demand)
@@ -410,13 +410,13 @@ Skills are **folder-per-skill** packages with a `SKILL.md` entry point and optio
     typescript.md         # TypeScript-specific conventions
 ```
 
-This project includes 3 skills in [`.agenttree/skills/`](.agenttree/skills/):
+This project includes 3 skills in [`.leeway/skills/`](.leeway/skills/):
 
 | Skill | Description | Supporting Files | Used by |
 |-------|-------------|-----------------|---------|
-| [`coding-standards`](.agenttree/skills/coding-standards/SKILL.md) | Coding standards checklist | `python.md`, `typescript.md` | Global (all nodes) |
-| [`code-review`](.agenttree/skills/code-review/SKILL.md) | Quality review patterns | `checklist.md` | `architecture` branch |
-| [`security-audit`](.agenttree/skills/security-audit/SKILL.md) | Security vulnerability audit | `owasp.md` | `security` branch |
+| [`coding-standards`](.leeway/skills/coding-standards/SKILL.md) | Coding standards checklist | `python.md`, `typescript.md` | Global (all nodes) |
+| [`code-review`](.leeway/skills/code-review/SKILL.md) | Quality review patterns | `checklist.md` | `architecture` branch |
+| [`security-audit`](.leeway/skills/security-audit/SKILL.md) | Security vulnerability audit | `owasp.md` | `security` branch |
 
 ### How Progressive Disclosure Works
 
@@ -454,7 +454,7 @@ nodes:
           skills: [code-review]       # only this branch gets code-review
 ```
 
-Place in `~/.agenttree/skills/` or `<project>/.agenttree/skills/`. Legacy flat `.md` files are also supported. List with `/skills`, load via the `skill` tool.
+Place in `~/.leeway/skills/` or `<project>/.leeway/skills/`. Legacy flat `.md` files are also supported. List with `/skills`, load via the `skill` tool.
 
 ---
 
@@ -520,7 +520,7 @@ Connect to [Model Context Protocol](https://modelcontextprotocol.io/) servers fo
 MCP tools auto-register as `mcp_<server>_<tool>` and are available in workflow node `tools:` lists.
 
 ```bash
-uv pip install agenttree[mcp]  # Install MCP support
+uv pip install leeway[mcp]  # Install MCP support
 ```
 
 ---
@@ -546,7 +546,7 @@ my-plugin/
 }
 ```
 
-Place in `~/.agenttree/plugins/<name>/` or `<project>/.agenttree/plugins/<name>/`.
+Place in `~/.leeway/plugins/<name>/` or `<project>/.leeway/plugins/<name>/`.
 
 ---
 
@@ -609,13 +609,13 @@ Multi-level safety with fine-grained control:
 
 ---
 
-## Extending AgentTree
+## Extending Leeway
 
 ### Custom Tool
 
 ```python
 from pydantic import BaseModel, Field
-from agenttree.tools.base import BaseTool, ToolExecutionContext, ToolResult
+from leeway.tools.base import BaseTool, ToolExecutionContext, ToolResult
 
 class MyToolInput(BaseModel):
     query: str = Field(description="Search query")
@@ -631,11 +631,11 @@ class MyTool(BaseTool):
 
 ### Custom Skill
 
-Create `~/.agenttree/skills/my-skill.md` with YAML frontmatter.
+Create `~/.leeway/skills/my-skill.md` with YAML frontmatter.
 
 ### Custom Plugin
 
-Create `<project>/.agenttree/plugins/my-plugin/plugin.json` with skills, hooks, and MCP servers.
+Create `<project>/.leeway/plugins/my-plugin/plugin.json` with skills, hooks, and MCP servers.
 
 ---
 
@@ -671,7 +671,7 @@ uv run pytest -q  # Run all tests
 ## Project Structure
 
 ```
-.agenttree/               # Project-level configuration (auto-discovered)
+.leeway/               # Project-level configuration (auto-discovered)
   workflows/              # YAML workflow definitions
     project-kickoff.yaml  # Example: all features in one workflow
   skills/                 # Folder-per-skill with progressive disclosure
@@ -679,7 +679,7 @@ uv run pytest -q  # Run all tests
     code-review/          # SKILL.md + checklist.md
     security-audit/       # SKILL.md + owasp.md
 
-src/agenttree/
+src/leeway/
   agents/       # Subagent spawning with worktree isolation
   api/          # LLM provider clients (Anthropic, OpenAI)
   config/       # Settings and path management

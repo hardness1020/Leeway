@@ -1,8 +1,8 @@
 """Tests for permission checker."""
 
-from agenttree.config.settings import PermissionSettings
-from agenttree.permissions.checker import PermissionChecker
-from agenttree.permissions.modes import PermissionMode
+from leeway.config.settings import PermissionSettings
+from leeway.permissions.checker import PermissionChecker
+from leeway.permissions.modes import PermissionMode
 
 
 def test_full_auto_allows_all():

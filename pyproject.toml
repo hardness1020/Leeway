@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "agenttree"
+name = "leeway"
 version = "0.1.0"
 description = "A workflow-driven AI agent framework - run LLMs through YAML-defined decision trees"
 license = "MIT"
@@ -34,11 +34,11 @@ dev = [
 ]
 
 [project.scripts]
-agenttree = "agenttree.cli:app"
-at = "agenttree.cli:app"
+leeway = "leeway.cli:app"
+at = "leeway.cli:app"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/agenttree"]
+packages = ["src/leeway"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

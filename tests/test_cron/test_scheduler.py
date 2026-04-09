@@ -2,8 +2,8 @@
 
 from datetime import datetime, timezone
 
-from agenttree.cron.scheduler import compute_next_run
-from agenttree.cron.types import (
+from leeway.cron.scheduler import compute_next_run
+from leeway.cron.types import (
     CronJob,
     CronScheduleSpec,
     IntervalSchedule,

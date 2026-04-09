@@ -1,7 +1,7 @@
 """Tests for tool base classes."""
 
-from agenttree.tools.base import ToolRegistry
-from agenttree.tools import create_default_tool_registry
+from leeway.tools.base import ToolRegistry
+from leeway.tools import create_default_tool_registry
 
 
 def test_default_registry_has_expected_tools():

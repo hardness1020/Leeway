@@ -4,10 +4,10 @@ from pathlib import Path
 
 import pytest
 
-from agenttree.skills.registry import SkillRegistry
-from agenttree.skills.types import SkillDefinition
-from agenttree.tools.base import ToolExecutionContext
-from agenttree.tools.skill_tool import SkillTool, SkillToolInput
+from leeway.skills.registry import SkillRegistry
+from leeway.skills.types import SkillDefinition
+from leeway.tools.base import ToolExecutionContext
+from leeway.tools.skill_tool import SkillTool, SkillToolInput
 
 
 @pytest.fixture

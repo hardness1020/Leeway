@@ -1,7 +1,7 @@
 """Tests for hook registry."""
 
-from agenttree.hooks.registry import HookRegistry
-from agenttree.hooks.types import CommandHookDefinition, HookEvent, HookMatchSpec, HttpHookDefinition
+from leeway.hooks.registry import HookRegistry
+from leeway.hooks.types import CommandHookDefinition, HookEvent, HookMatchSpec, HttpHookDefinition
 
 
 def test_match_by_event():

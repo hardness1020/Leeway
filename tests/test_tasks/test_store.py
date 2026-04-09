@@ -2,8 +2,8 @@
 
 from pathlib import Path
 
-from agenttree.tasks.store import TaskStore
-from agenttree.tasks.types import TaskRecord, TaskState, TaskType
+from leeway.tasks.store import TaskStore
+from leeway.tasks.types import TaskRecord, TaskState, TaskType
 
 
 def test_save_and_get(tmp_path: Path):

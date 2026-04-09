@@ -369,9 +369,6 @@ export function App({config}: {config: FrontendConfig}): React.JSX.Element {
 				<CommandPicker hints={commandHints} selectedIndex={pickerIndex} />
 			) : null}
 
-			{/* Status bar */}
-			<StatusBar status={session.status} tasks={session.tasks} />
-
 			{/* Input */}
 			{session.modal || selectModal ? null : (
 				<PromptInput
@@ -395,6 +392,9 @@ export function App({config}: {config: FrontendConfig}): React.JSX.Element {
 					</Text>
 				</Box>
 			) : null}
+
+			{/* Status bar */}
+			<StatusBar status={session.status} tasks={session.tasks} />
 		</Box>
 	);
 }

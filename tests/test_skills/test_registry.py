@@ -2,8 +2,8 @@
 
 from pathlib import Path
 
-from agenttree.skills.registry import SkillRegistry, _parse_skill_file, load_skill_registry
-from agenttree.skills.types import SkillDefinition
+from leeway.skills.registry import SkillRegistry, _parse_skill_file, load_skill_registry
+from leeway.skills.types import SkillDefinition
 
 
 def test_parse_skill_with_frontmatter(tmp_path: Path):
@@ -51,12 +51,12 @@ def test_project_overrides_user(tmp_path: Path):
     user_dir.mkdir(parents=True)
     (user_dir / "fix.md").write_text("---\nname: fix\n---\nUser fix instructions")
 
-    project_dir = tmp_path / "project" / ".agenttree" / "skills"
+    project_dir = tmp_path / "project" / ".leeway" / "skills"
     project_dir.mkdir(parents=True)
     (project_dir / "fix.md").write_text("---\nname: fix\n---\nProject fix instructions")
 
     registry = SkillRegistry()
-    from agenttree.skills.registry import _scan_directory
+    from leeway.skills.registry import _scan_directory
 
     _scan_directory(user_dir, "user", registry)
     _scan_directory(project_dir, "project", registry)
@@ -68,7 +68,7 @@ def test_project_overrides_user(tmp_path: Path):
 
 
 def test_load_skill_registry(tmp_path: Path):
-    skills_dir = tmp_path / ".agenttree" / "skills"
+    skills_dir = tmp_path / ".leeway" / "skills"
     skills_dir.mkdir(parents=True)
     (skills_dir / "debug.md").write_text("---\nname: debug\ndescription: Debug help\n---\nDebug steps.")
 
@@ -96,7 +96,7 @@ def test_folder_skill_discovered(tmp_path: Path):
     )
 
     registry = SkillRegistry()
-    from agenttree.skills.registry import _scan_directory
+    from leeway.skills.registry import _scan_directory
 
     _scan_directory(tmp_path, "project", registry)
     skill = registry.get("code-review")
@@ -161,7 +161,7 @@ def test_folder_skill_overrides_flat(tmp_path: Path):
     (tmp_path / "review.md").write_text("---\nname: review\n---\nFlat version.")
 
     registry = SkillRegistry()
-    from agenttree.skills.registry import _scan_directory
+    from leeway.skills.registry import _scan_directory
 
     _scan_directory(tmp_path, "project", registry)
     skill = registry.get("review")
@@ -175,7 +175,7 @@ def test_legacy_flat_still_works(tmp_path: Path):
     (tmp_path / "simple.md").write_text("---\nname: simple\n---\nFlat skill.")
 
     registry = SkillRegistry()
-    from agenttree.skills.registry import _scan_directory
+    from leeway.skills.registry import _scan_directory
 
     _scan_directory(tmp_path, "project", registry)
     skill = registry.get("simple")

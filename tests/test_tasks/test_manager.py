@@ -5,14 +5,14 @@ from pathlib import Path
 
 import pytest
 
-from agenttree.tasks.manager import BackgroundTaskManager
-from agenttree.tasks.store import TaskStore
-from agenttree.tasks.types import TaskState
+from leeway.tasks.manager import BackgroundTaskManager
+from leeway.tasks.store import TaskStore
+from leeway.tasks.types import TaskState
 
 
 @pytest.fixture
 def manager(tmp_path: Path, monkeypatch):
-    monkeypatch.setattr("agenttree.tasks.manager.get_data_dir", lambda: tmp_path)
+    monkeypatch.setattr("leeway.tasks.manager.get_data_dir", lambda: tmp_path)
     store = TaskStore(tmp_path / "tasks.json")
     return BackgroundTaskManager(store=store)
 

@@ -1,7 +1,7 @@
 """Tests for node-level skills, hooks, and MCP scoping."""
 
 import pytest
-from agenttree.workflow.types import NodeSpec, WorkflowDefinition, EdgeSpec, ConditionSpec
+from leeway.workflow.types import NodeSpec, WorkflowDefinition, EdgeSpec, ConditionSpec
 
 
 def test_node_spec_with_skills():

@@ -1,5 +1,5 @@
 {
-  "name": "@agenttree/terminal",
+  "name": "@leeway/terminal",
   "private": true,
   "type": "module",
   "scripts": {
