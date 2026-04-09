@@ -573,6 +573,12 @@ async def _dispatch_command(
             ask_user_prompt=bundle.engine._ask_user_prompt,
         )
         result = await engine.execute(user_context=args)
+        # Ensure statusline clears workflow state even on error/early exit
+        bundle.app_state.set(
+            workflow_name="",
+            workflow_node="",
+            workflow_parallel_branches=[],
+        )
         await print_system(result.format_output())
         return True, True
 
