@@ -22,6 +22,10 @@
   <img src="https://img.shields.io/badge/output-text_|_json_|_stream--json-blueviolet" alt="Output">
 </p>
 
+<p align="center">
+  <img src="assets/agent_start.png" alt="Leeway CLI" width="600">
+</p>
+
 ---
 
 ## Why Leeway?
@@ -135,10 +139,6 @@ uv run leeway --model claude-opus-4-6
 uv run leeway --api-format openai --base-url https://api.openai.com/v1
 ```
 
-<p align="center">
-  <img src="assets/agent_start.png" alt="Leeway CLI" width="600">
-</p>
-
 ### Try the Example Workflow
 
 ```bash
@@ -146,6 +146,10 @@ uv run leeway --api-format openai --base-url https://api.openai.com/v1
 uv run leeway
 > /code-health start
 ```
+
+<p align="center">
+  <img src="assets/workflow_interactive.png" alt="Interactive workflow execution" width="600">
+</p>
 
 ---
 
@@ -279,29 +283,14 @@ All matching branches run concurrently. All triggered branches must complete bef
 
 See [`.leeway/workflows/code-health.yaml`](.leeway/workflows/code-health.yaml) — all five patterns in one workflow with skills, hooks, and approval gates:
 
+```python
+# Show avaliable workflows and select one
+> /workflows
 ```
-    ┌────────────┐
-    │ scan start │    linear, auto
-    └────────────┘
-           │
-           ▼
-     ┌──────────┐
-     │  triage  │◄──┐ [dig_deeper]
-     └──────────┘   │
-           ├────────┘
-           │ [ready]
-           ▼
-╔═══════════════════════════════════╗
-║       review (parallel)           ║
-╠═══════════════════════════════════╣
-║ quality | security* | docs        ║
-╚═══════════════════════════════════╝
-           │
-           ▼
-    ┌─────────────┐
-    │ report end  │
-    └─────────────┘
-```
+
+<p align="center">
+  <img src="assets/workflow_graph.png" alt="Code-health workflow graph" width="600">
+</p>
 
 ### Workflow Properties
 
@@ -373,25 +362,9 @@ The `parallel` block itself also accepts a `timeout` (default `600` seconds) for
 
 ### Workflow Progress
 
-```
-▶ Starting workflow 'code-health' at node 'scan'
-  ● Node 'scan'
-    ⇢ Transition → 'triage'
-  ● Node 'triage'
-    ⇢ Signal 'ready' → moving to 'review'
-  || Parallel node 'review' — 3 branches
-  |  Branch 'quality': starting
-  |  Branch 'security': approved
-  |  Branch 'security': starting
-  |  Branch 'docs': starting
-  |  Branch 'quality': completed
-  |  Branch 'docs': completed
-  |  Branch 'security': completed
-  || All branches complete → 'report'
-  ● Node 'report' (terminal)
-
-✓ Workflow 'code-health' complete. Path: scan → triage → review → report
-```
+<p align="center">
+  <img src="assets/workflow_process.png" alt="Workflow execution progress" width="600">
+</p>
 
 ---
 
