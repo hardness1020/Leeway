@@ -294,6 +294,36 @@ See [`.leeway/workflows/project-kickoff.yaml`](.leeway/workflows/project-kickoff
        └──────────────┘
 ```
 
+### Workflow Properties
+
+Top-level fields in the YAML file:
+
+| Property | Default | Description |
+|----------|---------|-------------|
+| `name` | required | Workflow identifier (used in commands and logs) |
+| `description` | `""` | Human-readable description of the workflow |
+| `start_node` | required | Name of the first node to execute |
+| `nodes` | required | Dictionary mapping node names to node definitions |
+| `global_tools` | `[]` | Tools available in every node (merged with per-node tools) |
+| `global_skills` | `[]` | Skills available in every node (merged with per-node skills) |
+| `global_hooks` | `[]` | Hooks active in every node (merged with per-node hooks) |
+| `global_mcp_servers` | `[]` | MCP servers available in every node (merged with per-node MCP servers) |
+
+### Node Properties
+
+| Property | Default | Description |
+|----------|---------|-------------|
+| `prompt` | required | Task instructions for the LLM at this step |
+| `tools` | `[]` | Tool whitelist (only these tools are available) |
+| `max_turns` | `50` | Max LLM turns within this node |
+| `carry_context` | `true` | Pass prior node's summary as context |
+| `interactive` | `true` | When `true`, the agent can use `ask_user_question` and permission prompts are shown. When `false`, the node runs fully automatically — user prompts are suppressed and parallel approval gates are auto-approved |
+| `edges` | `[]` | Outgoing transitions (empty = terminal node) |
+| `skills` | `[]` | Skill names scoped to this node |
+| `hooks` | `[]` | Node-specific hook definitions |
+| `mcp_servers` | `[]` | MCP server names scoped to this node |
+| `parallel` | `null` | Parallel execution spec (branches, timeout) |
+
 ### Transition Conditions
 
 | Condition | Description |
@@ -305,21 +335,30 @@ See [`.leeway/workflows/project-kickoff.yaml`](.leeway/workflows/project-kickoff
 
 All conditions support `negate: true` to invert the match.
 
-### Node Properties
+### Edge Properties
 
 | Property | Default | Description |
 |----------|---------|-------------|
-| `prompt` | required | Task instructions for the LLM at this step |
-| `tools` | `[]` | Tool whitelist (only these tools are available) |
-| `max_turns` | `50` | Max LLM turns within this node |
-| `carry_context` | `true` | Pass prior node's summary as context |
-| `edges` | `[]` | Outgoing transitions (empty = terminal node) |
-| `skills` | `[]` | Skill names scoped to this node |
-| `hooks` | `[]` | Node-specific hook definitions |
-| `mcp_servers` | `[]` | MCP server names scoped to this node |
-| `parallel` | `null` | Parallel execution spec (branches, timeout) |
+| `target` | required | Name of the destination node |
+| `when` | `always` | Transition condition (see table above) |
+| `priority` | `0` | Evaluation order — higher priority edges are checked first |
 
-Workflow-level `global_skills`, `global_hooks`, and `global_mcp_servers` are merged into every node, just like `global_tools`.
+### Branch Properties
+
+Each branch inside a `parallel` block supports:
+
+| Property | Default | Description |
+|----------|---------|-------------|
+| `when` | `always` | Condition that triggers this branch |
+| `prompt` | required | Branch-specific task instructions |
+| `tools` | `[]` | Tool whitelist for this branch |
+| `max_turns` | `50` | Max LLM turns within this branch |
+| `skills` | `[]` | Skill names scoped to this branch |
+| `hooks` | `[]` | Branch-scoped hook definitions |
+| `mcp_servers` | `[]` | MCP server names scoped to this branch |
+| `requires_approval` | `false` | Human-in-the-loop gate — ask user before executing |
+
+The `parallel` block itself also accepts a `timeout` (default `600` seconds) for how long to wait for all triggered branches to complete.
 
 ### Workflow Progress
 
@@ -400,29 +439,32 @@ Skills are **folder-per-skill** packages with a `SKILL.md` entry point and optio
 .leeway/skills/
   code-review/
     SKILL.md              # main instructions (loaded first)
-    checklist.md          # detailed checklist (loaded on demand)
+    references/
+      checklist.md        # detailed checklist (loaded on demand)
   security-audit/
     SKILL.md              # main instructions
-    owasp.md              # OWASP checklist (loaded on demand)
+    references/
+      owasp.md            # OWASP checklist (loaded on demand)
   coding-standards/
     SKILL.md              # main instructions
-    python.md             # Python-specific conventions
-    typescript.md         # TypeScript-specific conventions
+    references/
+      python.md           # Python-specific conventions
+      typescript.md       # TypeScript-specific conventions
 ```
 
 This project includes 3 skills in [`.leeway/skills/`](.leeway/skills/):
 
-| Skill | Description | Supporting Files | Used by |
-|-------|-------------|-----------------|---------|
-| [`coding-standards`](.leeway/skills/coding-standards/SKILL.md) | Coding standards checklist | `python.md`, `typescript.md` | Global (all nodes) |
-| [`code-review`](.leeway/skills/code-review/SKILL.md) | Quality review patterns | `checklist.md` | `architecture` branch |
-| [`security-audit`](.leeway/skills/security-audit/SKILL.md) | Security vulnerability audit | `owasp.md` | `security` branch |
+| Skill | Description | References | Used by |
+|-------|-------------|------------|---------|
+| [`coding-standards`](.leeway/skills/coding-standards/SKILL.md) | Coding standards checklist | `references/python.md`, `references/typescript.md` | Global (all nodes) |
+| [`code-review`](.leeway/skills/code-review/SKILL.md) | Quality review patterns | `references/checklist.md` | `architecture` branch |
+| [`security-audit`](.leeway/skills/security-audit/SKILL.md) | Security vulnerability audit | `references/owasp.md` | `security` branch |
 
 ### How Progressive Disclosure Works
 
-1. Agent calls `skill(name="code-review")` → gets SKILL.md content + list of supporting files
-2. SKILL.md says *"For the full checklist, read checklist.md"*
-3. Agent calls `skill(name="code-review", file="checklist.md")` → gets detailed checklist
+1. Agent calls `skill(name="code-review")` → gets SKILL.md content + list of reference files
+2. SKILL.md says *"For the full checklist, read references/checklist.md"*
+3. Agent calls `skill(name="code-review", file="references/checklist.md")` → gets detailed checklist
 4. Only the content needed right now is loaded into context
 
 ### SKILL.md Format
@@ -430,15 +472,20 @@ This project includes 3 skills in [`.leeway/skills/`](.leeway/skills/):
 ```markdown
 ---
 name: code-review
-description: Code quality review — identify patterns and anti-patterns
+description: Code quality review — identify patterns, anti-patterns, and improvements. Use when performing code reviews, auditing code quality, or evaluating pull requests.
 ---
 
 # Code Review
 
-When performing a code review, follow these steps...
+## Workflow
 
-For the full quality checklist, read [checklist.md](checklist.md).
+1. Scan structure — use `glob` and `grep` to understand the scope of changes
+...
+
+For the full quality checklist, read [references/checklist.md](references/checklist.md).
 ```
+
+The `description` field is the primary trigger — include both what the skill does and when to use it. Supporting files go in `references/`, `scripts/`, or `assets/` subdirectories.
 
 ### Scoping
 
@@ -675,9 +722,9 @@ uv run pytest -q  # Run all tests
   workflows/              # YAML workflow definitions
     project-kickoff.yaml  # Example: all features in one workflow
   skills/                 # Folder-per-skill with progressive disclosure
-    coding-standards/     # SKILL.md + python.md + typescript.md
-    code-review/          # SKILL.md + checklist.md
-    security-audit/       # SKILL.md + owasp.md
+    coding-standards/     # SKILL.md + references/python.md, typescript.md
+    code-review/          # SKILL.md + references/checklist.md
+    security-audit/       # SKILL.md + references/owasp.md
 
 src/leeway/
   agents/       # Subagent spawning with worktree isolation

@@ -1,11 +1,9 @@
 ---
 name: security-audit
-description: Security vulnerability audit — check for OWASP top risks and secrets
+description: Security vulnerability audit — check for OWASP top risks, hardcoded secrets, injection points, and dependency CVEs. Use when auditing code for security vulnerabilities, reviewing authentication/authorization logic, or checking for secrets leakage before merge.
 ---
 
 # Security Audit
-
-When auditing code for security, follow these steps:
 
 ## Workflow
 
@@ -32,7 +30,7 @@ grep -rn "f\".*SELECT\|f\".*INSERT\|f\".*UPDATE" --include="*.py" .
 
 - **Critical findings block merge** — hardcoded secrets, RCE, SQL injection
 - Cite file:line for every finding
-- False positives are OK to flag — better safe than sorry
+- Flag false positives — better safe than sorry
 - Check test files too — test secrets sometimes leak to production
 
 ## Output Format
@@ -42,4 +40,4 @@ Structure findings by severity:
 - **High**: Should fix
 - **Medium**: Recommend fixing
 
-For the full OWASP-based checklist, read [owasp.md](owasp.md).
+For the full OWASP-based checklist, read [references/owasp.md](references/owasp.md).
