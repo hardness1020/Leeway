@@ -149,7 +149,7 @@ flowchart LR
     Q --> A[Anthropic / OpenAI API]
     A -->|tool_use| T[Tool Registry — 21+ tools]
     T --> P[Permissions + Hooks]
-    P --> X[Files | Shell | Web | MCP | Tasks | Cron]
+    P --> X["Files | Shell | Web | MCP | Tasks | Cron"]
     X --> Q
 ```
 
