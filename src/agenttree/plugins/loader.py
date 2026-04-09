@@ -57,7 +57,15 @@ class PluginLoader:
                         manifest.name, skill_path,
                     )
                     continue
-                if full_path.exists():
+                if full_path.is_dir():
+                    # Folder-per-skill: <skill>/SKILL.md
+                    skill_md = full_path / "SKILL.md"
+                    if skill_md.is_file():
+                        skill = _parse_skill_file(skill_md, "plugin", dir_path=full_path)
+                        if skill is not None:
+                            skill_registry.register(skill)
+                elif full_path.is_file():
+                    # Legacy flat file
                     skill = _parse_skill_file(full_path, "plugin")
                     if skill is not None:
                         skill_registry.register(skill)

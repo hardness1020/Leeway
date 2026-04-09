@@ -17,6 +17,7 @@ class NodeExecution:
     tools_called: list[str] = field(default_factory=list)
     next_node: str | None = None
     turns_used: int = 0
+    parallel_results: dict[str, dict] | None = None
 
 
 @dataclass
@@ -48,4 +49,12 @@ class WorkflowAuditTrail:
             signal = f" [signal={ne.signal_decision}]" if ne.signal_decision else ""
             next_label = f" -> {ne.next_node}" if ne.next_node else " (terminal)"
             lines.append(f"  {ne.node_name}{signal}{next_label}")
+            if ne.parallel_results:
+                for branch_name, br in ne.parallel_results.items():
+                    status = "ok" if br.get("success") else br.get("error", "failed")
+                    if not br.get("triggered"):
+                        status = "not triggered"
+                    elif not br.get("approved"):
+                        status = "denied"
+                    lines.append(f"    | {branch_name}: {status}")
         return "\n".join(lines)

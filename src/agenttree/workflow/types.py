@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Literal, Self
+from typing import Any, Literal, Self
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -90,11 +90,22 @@ class EdgeSpec(BaseModel):
 class NodeSpec(BaseModel):
     """One node in the workflow graph."""
 
-    prompt: str
+    prompt: str = Field("", description="Node prompt (empty when parallel is set)")
     tools: list[str] = Field(default_factory=list, description="Tool whitelist for this node")
     max_turns: int = Field(50, description="Max LLM turns within this node")
     carry_context: bool = Field(True, description="Pass prior node summary as context")
     edges: list[EdgeSpec] = Field(default_factory=list)
+    skills: list[str] = Field(default_factory=list, description="Skill names scoped to this node")
+    hooks: list[dict[str, Any]] = Field(default_factory=list, description="Node-scoped hook definitions")
+    mcp_servers: list[str] = Field(default_factory=list, description="MCP server names scoped to this node")
+    parallel: dict[str, Any] | None = Field(None, description="Parallel execution spec (parsed into ParallelSpec)")
+
+    def get_parallel_spec(self) -> Any:
+        """Parse and return the ParallelSpec, or None."""
+        if self.parallel is None:
+            return None
+        from agenttree.workflow.parallel import ParallelSpec
+        return ParallelSpec.model_validate(self.parallel)
 
 
 class WorkflowDefinition(BaseModel):
@@ -107,6 +118,18 @@ class WorkflowDefinition(BaseModel):
     global_tools: list[str] = Field(
         default_factory=list,
         description="Tools available in every node (merged with per-node tools)",
+    )
+    global_skills: list[str] = Field(
+        default_factory=list,
+        description="Skills available in every node (merged with per-node skills)",
+    )
+    global_hooks: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description="Hooks active in every node (merged with per-node hooks)",
+    )
+    global_mcp_servers: list[str] = Field(
+        default_factory=list,
+        description="MCP servers available in every node (merged with per-node mcp_servers)",
     )
 
     @model_validator(mode="after")
@@ -122,6 +145,14 @@ class WorkflowDefinition(BaseModel):
                     errors.append(
                         f"node '{node_name}' has edge targeting unknown node '{edge.target}'"
                     )
+            # Validate parallel spec if present
+            if node.parallel is not None:
+                try:
+                    pspec = node.get_parallel_spec()
+                    if not pspec.branches:
+                        errors.append(f"parallel node '{node_name}' has no branches")
+                except Exception as exc:
+                    errors.append(f"parallel node '{node_name}' has invalid spec: {exc}")
 
         # Check for unreachable nodes (not reachable from start_node)
         if self.start_node in self.nodes:

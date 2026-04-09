@@ -5,26 +5,35 @@ from __future__ import annotations
 from agenttree.workflow.types import ConditionType, WorkflowDefinition
 
 # Layout constants
-_BOX_H = 3       # box height (top border, content, bottom border)
+_STD_BOX_H = 3   # standard box height (top border, content, bottom border)
+_PAR_BOX_H = 5   # parallel box height (border, name, separator, branches, border)
 _V_GAP = 5       # rows between layer boxes for edge routing
 _H_GAP = 6       # horizontal gap between boxes in same layer
 _BACK_MARGIN = 4  # right margin for back-edge loops
 _MAX_LABEL = 26  # max chars for an edge label in the graph
 
 
-def _edge_label(edge) -> str:
-    cond = edge.condition
+def _condition_label(cond, *, verbose: bool = False) -> str:
+    """Format a ConditionSpec into a label.
+
+    ``verbose=False`` (default): compact for edge labels (e.g. ``approve``).
+    ``verbose=True``: readable for branch descriptions (e.g. ``if output matches "pattern"``).
+    """
     if cond.type == ConditionType.SIGNAL:
-        lbl = cond.value
+        lbl = f'if signal "{cond.value}"' if verbose else cond.value
     elif cond.type == ConditionType.OUTPUT_MATCHES:
-        lbl = f"~{cond.value}"
+        lbl = f'if output matches "{cond.value}"' if verbose else f'match:"{cond.value}"'
     elif cond.type == ConditionType.TOOL_WAS_CALLED:
-        lbl = f"tool:{cond.value}"
+        lbl = f"if tool {cond.value} called" if verbose else f"tool:{cond.value}"
     else:
-        lbl = ""
+        lbl = "always" if verbose else ""
     if cond.negate:
-        lbl = f"!{lbl}"
+        lbl = f"NOT {lbl}" if verbose else f"!{lbl}"
     return lbl
+
+
+def _edge_label(edge) -> str:
+    return _condition_label(edge.condition, verbose=False)
 
 
 def _fmt_label(lbl: str) -> str:
@@ -35,15 +44,64 @@ def _fmt_label(lbl: str) -> str:
     return f"[{truncated}]"
 
 
+def _is_parallel(name: str, wf: WorkflowDefinition) -> bool:
+    return wf.nodes[name].parallel is not None
+
+
+def _node_height(name: str, wf: WorkflowDefinition) -> int:
+    if not _is_parallel(name, wf):
+        return _STD_BOX_H
+    # 3 fixed rows (top border, name, separator) + branch lines + bottom border
+    n_lines = len(_branch_lines(name, wf))
+    return 3 + max(n_lines, 1) + 1
+
+
 def _node_tag(name: str, wf: WorkflowDefinition) -> str:
     parts = []
     if name == wf.start_node:
         parts.append("start")
     if wf.is_terminal(name):
         parts.append("end")
+    node = wf.nodes[name]
+    if node.parallel is not None:
+        parts.append("parallel")
+    if node.skills:
+        parts.append(f"s:{len(node.skills)}")
+    if node.mcp_servers:
+        parts.append(f"mcp:{','.join(node.mcp_servers)}")
     if parts:
         return " " + ",".join(parts)
     return ""
+
+
+def _branch_lines(name: str, wf: WorkflowDefinition) -> list[str]:
+    """Build readable branch listing lines for a parallel node.
+
+    Returns a list of lines. If everything fits on one line (under 60 chars),
+    returns one line.  Otherwise one branch per line.
+    """
+    node = wf.nodes[name]
+    if node.parallel is None:
+        return []
+    try:
+        spec = node.get_parallel_spec()
+    except Exception:
+        return ["(invalid parallel spec)"]
+
+    entries: list[str] = []
+    for bname, branch in spec.branches.items():
+        label = bname
+        if branch.condition.type != ConditionType.ALWAYS:
+            label += f" ({_condition_label(branch.condition, verbose=True)})"
+        if branch.requires_approval:
+            label += " [requires user approval]"
+        entries.append(label)
+
+    one_line = " | ".join(entries)
+    if len(one_line) <= 60:
+        return [one_line]
+    # One branch per line
+    return entries
 
 
 # ── Character grid ──────────────────────────────────────────────────────────
@@ -71,6 +129,17 @@ class _Grid:
         self.puts(r, c, "┌" + "─" * (w - 2) + "┐")
         self.puts(r + 1, c, "│" + label.center(w - 2) + "│")
         self.puts(r + 2, c, "└" + "─" * (w - 2) + "┘")
+
+    def parallel_box(self, r: int, c: int, w: int, label: str, branch_lines: list[str]) -> None:
+        """Draw a double-border box for parallel nodes."""
+        self.puts(r, c, "╔" + "═" * (w - 2) + "╗")
+        self.puts(r + 1, c, "║" + label.center(w - 2) + "║")
+        self.puts(r + 2, c, "╠" + "─" * (w - 2) + "╣")
+        for i, line in enumerate(branch_lines):
+            text = line[:w - 4]  # leave room for "║ " prefix and " ║" suffix
+            self.puts(r + 3 + i, c, "║ " + text.ljust(w - 4) + " ║")
+        bottom = r + 3 + len(branch_lines)
+        self.puts(bottom, c, "╚" + "═" * (w - 2) + "╝")
 
     def vline(self, col: int, r0: int, r1: int) -> None:
         for r in range(r0, r1 + 1):
@@ -192,11 +261,20 @@ def render_workflow_graph(wf: WorkflowDefinition) -> str:
     for name, layer in sorted(layers.items(), key=lambda x: x[1]):
         groups[layer].append(name)
 
-    # Compute box widths
+    # Compute box widths and heights
     box_w: dict[str, int] = {}
+    box_h: dict[str, int] = {}
+    _branch_cache: dict[str, list[str]] = {}  # cache branch lines per node
     for name in wf.nodes:
         tag = _node_tag(name, wf)
-        box_w[name] = max(14, len(name + tag) + 4)
+        min_w = len(name + tag) + 4
+        if _is_parallel(name, wf):
+            lines = _branch_lines(name, wf)
+            _branch_cache[name] = lines
+            max_line = max((len(l) for l in lines), default=0)
+            min_w = max(min_w, max_line + 6)  # 6 = "║ " + " ║" + padding
+        box_w[name] = max(14, min_w)
+        box_h[name] = _node_height(name, wf)
 
     # Layer total widths (for centering)
     layer_total_w: dict[int, int] = {}
@@ -218,15 +296,24 @@ def render_workflow_graph(wf: WorkflowDefinition) -> str:
     # Header
     header_rows = 3 if wf.description else 2
 
-    # Grid height: header + layers * box_h + gaps * v_gap + bottom padding
-    grid_h = header_rows + (max_layer + 1) * _BOX_H + max_layer * _V_GAP + 1
+    # Per-layer max height (tallest box in each layer)
+    layer_max_h: dict[int, int] = {}
+    for li, names in groups.items():
+        layer_max_h[li] = max(box_h[n] for n in names) if names else _STD_BOX_H
+
+    # Grid height: header + sum(layer heights) + gaps * v_gap + bottom padding
+    total_box_h = sum(layer_max_h.get(i, _STD_BOX_H) for i in range(max_layer + 1))
+    grid_h = header_rows + total_box_h + max_layer * _V_GAP + 1
 
     # Compute positions: top-left (row, col) for each node box
     pos: dict[str, tuple[int, int]] = {}
     for li, names in groups.items():
         total_w = layer_total_w[li]
         start_x = (content_w - total_w) // 2 + 2
-        y = header_rows + li * (_BOX_H + _V_GAP)
+        # Cumulative y offset
+        y = header_rows
+        for prev_li in range(li):
+            y += layer_max_h.get(prev_li, _STD_BOX_H) + _V_GAP
         x = start_x
         for name in names:
             pos[name] = (y, x)
@@ -237,7 +324,7 @@ def render_workflow_graph(wf: WorkflowDefinition) -> str:
         return pos[name][1] + box_w[name] // 2
 
     def bot(name: str) -> int:
-        return pos[name][0] + _BOX_H  # row just below the box bottom border
+        return pos[name][0] + box_h[name]  # row just below the box bottom border
 
     def top(name: str) -> int:
         return pos[name][0]  # row of box top border
@@ -258,7 +345,10 @@ def render_workflow_graph(wf: WorkflowDefinition) -> str:
             continue
         r, c = pos[name]
         tag = _node_tag(name, wf)
-        grid.box(r, c, box_w[name], name + tag)
+        if _is_parallel(name, wf):
+            grid.parallel_box(r, c, box_w[name], name + tag, _branch_cache.get(name, []))
+        else:
+            grid.box(r, c, box_w[name], name + tag)
 
     # Max right edge of any box (for bypass/back-edge routing)
     max_right = max((pos[n][1] + box_w[n] for n in pos), default=0)
@@ -418,7 +508,7 @@ def render_workflow_graph(wf: WorkflowDefinition) -> str:
     for i, (src, tgt, lbl) in enumerate(back_edges):
         loop_col = max_right + 3 + i * 3
 
-        src_bot = pos[src][0] + _BOX_H  # row just below source box
+        src_bot = pos[src][0] + box_h[src]  # row just below source box
         tgt_r = pos[tgt][0] + 1         # middle row of target box
         tgt_right = pos[tgt][1] + box_w[tgt]  # right edge of target box
 
@@ -493,10 +583,15 @@ def render_workflow_list(workflows: list[WorkflowDefinition]) -> str:
     for i, w in enumerate(workflows, 1):
         node_count = len(w.nodes)
         terminal_count = sum(1 for n in w.nodes if w.is_terminal(n))
+        parallel_count = sum(1 for n in w.nodes if w.nodes[n].parallel is not None)
         desc = w.description or "(no description)"
         lines.append(f"  {i}. {w.name}")
         lines.append(f"     {desc}")
-        lines.append(f"     {node_count} nodes, {terminal_count} terminal")
+        info = f"     {node_count} nodes, {terminal_count} terminal"
+        if parallel_count:
+            lines.append(f"{info}, {parallel_count} parallel")
+        else:
+            lines.append(info)
         lines.append("")
 
     lines.append("Use /workflows to browse interactively.")

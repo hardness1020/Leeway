@@ -1,4 +1,4 @@
-"""Skill tool — loads skill content on demand."""
+"""Skill tool — loads skill content on demand with progressive disclosure."""
 
 from __future__ import annotations
 
@@ -12,20 +12,27 @@ class SkillToolInput(BaseModel):
     """Input for the skill tool."""
 
     name: str = Field(description="Name of the skill to load")
+    file: str | None = Field(
+        default=None,
+        description="Optional: read a supporting file from the skill folder (e.g. 'reference.md')",
+    )
 
 
 class SkillTool(BaseTool):
     """Load a skill's content into the conversation.
 
-    Skills are markdown files stored in ~/.agenttree/skills/ or
-    <project>/.agenttree/skills/ that provide reusable prompts,
-    instructions, or knowledge the agent can reference on demand.
+    Skills are folders in ~/.agenttree/skills/ or <project>/.agenttree/skills/
+    containing a SKILL.md file with instructions the agent follows on demand.
+
+    Supports progressive disclosure: SKILL.md is the main entry point,
+    and supporting files (reference.md, examples.md, etc.) can be read
+    on demand by passing the ``file`` parameter.
     """
 
     name = "skill"
     description = (
-        "Load a skill by name. Skills are reusable prompt templates "
-        "and knowledge stored as markdown files."
+        "Load a skill by name. Returns the SKILL.md content. "
+        "Pass file='<name>.md' to read a supporting file from the skill folder."
     )
     input_model = SkillToolInput
 
@@ -44,4 +51,27 @@ class SkillTool(BaseTool):
                 output=f"Skill '{args.name}' not found. Available skills: {available or '(none)'}",
                 is_error=True,
             )
-        return ToolResult(output=skill.content)
+
+        # Read a supporting file from the skill folder
+        if args.file is not None:
+            content = skill.read_file(args.file)
+            if content is None:
+                files = skill.list_files()
+                available_files = ", ".join(files) if files else "(none)"
+                return ToolResult(
+                    output=(
+                        f"File '{args.file}' not found in skill '{args.name}'. "
+                        f"Available files: {available_files}"
+                    ),
+                    is_error=True,
+                )
+            return ToolResult(output=content)
+
+        # Return the main SKILL.md content + list supporting files if any
+        output = skill.content
+        files = skill.list_files()
+        if files:
+            output += f"\n\n---\nSupporting files available (use skill(name='{skill.name}', file='<name>') to read):\n"
+            for f in files:
+                output += f"  - {f}\n"
+        return ToolResult(output=output)

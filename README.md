@@ -9,7 +9,7 @@
   <a href="#-quick-start"><img src="https://img.shields.io/badge/Quick_Start-3_min-blue?style=for-the-badge" alt="Quick Start"></a>
   <a href="#-writing-workflows"><img src="https://img.shields.io/badge/Workflows-YAML-ff69b4?style=for-the-badge" alt="Workflows"></a>
   <a href="#-tools-21"><img src="https://img.shields.io/badge/Tools-21+-green?style=for-the-badge" alt="Tools"></a>
-  <a href="#-test-results"><img src="https://img.shields.io/badge/Tests-119_Passing-brightgreen?style=for-the-badge" alt="Tests"></a>
+  <a href="#-test-results"><img src="https://img.shields.io/badge/Tests-190_Passing-brightgreen?style=for-the-badge" alt="Tests"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge" alt="License"></a>
 </p>
 
@@ -47,8 +47,8 @@ Most AI agent tools fall into two extremes:
 <p align="center"><strong>YAML Decision Trees</strong></p>
 <p align="center">Signal-based transitions</p>
 <p align="center">Branching, merging, loops</p>
-<p align="center">Per-node tool scoping</p>
-<p align="center">ASCII graph visualization</p>
+<p align="center">Parallel node execution</p>
+<p align="center">Per-node tool/skill/hook scoping</p>
 
 </td>
 <td width="20%" align="center" style="vertical-align: top; padding: 15px;">
@@ -90,7 +90,7 @@ Most AI agent tools fall into two extremes:
 
 <p align="center"><strong>Multi-level Permissions</strong></p>
 <p align="center">Path & command rules</p>
-<p align="center">Interactive approval</p>
+<p align="center">Human-in-the-loop gates</p>
 <p align="center">Plan mode (read-only)</p>
 <p align="center">Multi-provider support</p>
 
@@ -129,10 +129,12 @@ uv run agenttree -p "explain this codebase"
 uv run agenttree --api-format openai --base-url https://api.openai.com/v1
 ```
 
-### One-Command Demo
+### Try the Example Workflow
 
 ```bash
-ANTHROPIC_API_KEY=your_key uv run agenttree -p "Inspect this repository and list the top 3 improvements"
+# Plan and scaffold a new project using all workflow features
+uv run agenttree
+> /project-kickoff a REST API for a todo app in Python with FastAPI
 ```
 
 ---
@@ -171,16 +173,23 @@ while True:
 ### Workflow Execution
 
 ```
-User YAML ──► WorkflowEngine ──► Node 1 (scoped tools, max turns)
+User YAML ──► WorkflowEngine ──► Node 1 (scoped tools/skills/hooks)
                                     │
                                     ▼ signal / pattern / tool match
-                                 Node 2 ──► ... ──► Terminal Node
+                                 Node 2 (parallel?)
+                                    │
+                           ┌────────┼────────┐
+                           ▼        ▼        ▼    concurrent branches
+                        Branch A  Branch B  Branch C
+                           └────────┼────────┘
+                                    ▼ all branches complete
+                                 Node 3 ──► Terminal Node
                                     │
                                     ▼ audit trail + progress events
                                  Result
 ```
 
-The **human** defines the graph. The **AI** operates within each node. **Deterministic transitions** connect them.
+The **human** defines the graph. The **AI** operates within each node. **Deterministic transitions** connect them. **Parallel branches** run concurrently with per-branch scoping and human-in-the-loop approval gates.
 
 ---
 
@@ -188,7 +197,7 @@ The **human** defines the graph. The **AI** operates within each node. **Determi
 
 Place YAML files in `~/.agenttree/workflows/` or `<project>/.agenttree/workflows/`. They are automatically discovered.
 
-### Four Patterns
+### Five Patterns
 
 **Linear** — unconditional transition:
 ```yaml
@@ -229,29 +238,60 @@ summarize:
   prompt: "Write a summary with ## Overview, ## Key Files, ## Architecture."
 ```
 
+**Parallel** — condition-based concurrent branches:
+```yaml
+review:
+  parallel:
+    branches:
+      quality:
+        when: { always: true }
+        prompt: "Review code quality"
+        tools: [grep, glob]
+        skills: [code_review]
+      security:
+        when: { signal: security_risk }
+        prompt: "Security audit"
+        tools: [grep, web_fetch]
+        requires_approval: true
+      tests:
+        when: { signal: has_tests }
+        prompt: "Run tests"
+        tools: [bash]
+    timeout: 300
+  edges:
+    - target: report
+      when: { always: true }
+```
+
+All matching branches run concurrently. All triggered branches must complete before transitioning. Branches with `requires_approval: true` ask the user first.
+
 ### Full Example
 
-See [`examples/workflows/explore_codebase.yaml`](examples/workflows/explore_codebase.yaml) — all four patterns in one workflow:
+See [`.agenttree/workflows/project-kickoff.yaml`](.agenttree/workflows/project-kickoff.yaml) — all five patterns in one workflow with skills, hooks, and approval gates:
 
 ```
-         ┌────────────┐
-         │ scan start │
-         └────────────┘
-                │
-                ▼
-         ┌────────────┐
-         │   assess   │
-         └────────────┘
-                │
-     ┌──────────┴─────────┐
-     │                    │
-  needs_investigation   well_documented/trivial
-     ▼                    ▼
-┌────────────┐     ┌───────────────┐
-│ deep_dive  │────►│ summarize end │
-└────────────┘     └───────────────┘
-     │  ▲
-     └──┘ dig_deeper
+       ┌─────────────────┐
+       │  clarify start  │
+       └─────────────────┘
+               │
+               ▼
+        ┌────────────┐
+        │  research  │◄──┐ [dig_deeper]
+        └────────────┘   │
+               ├─────────┘
+               │ [ready]
+               ▼
+╔══════════════════════════════════════════╗
+║           design (parallel)              ║
+╠──────────────────────────────────────────╣
+║ architecture | dependencies | security*  ║
+║              | testing                   ║
+╚══════════════════════════════════════════╝
+               │
+               ▼
+       ┌──────────────┐
+       │ scaffold end │
+       └──────────────┘
 ```
 
 ### Transition Conditions
@@ -274,16 +314,34 @@ All conditions support `negate: true` to invert the match.
 | `max_turns` | `50` | Max LLM turns within this node |
 | `carry_context` | `true` | Pass prior node's summary as context |
 | `edges` | `[]` | Outgoing transitions (empty = terminal node) |
+| `skills` | `[]` | Skill names scoped to this node |
+| `hooks` | `[]` | Node-specific hook definitions |
+| `mcp_servers` | `[]` | MCP server names scoped to this node |
+| `parallel` | `null` | Parallel execution spec (branches, timeout) |
+
+Workflow-level `global_skills`, `global_hooks`, and `global_mcp_servers` are merged into every node, just like `global_tools`.
 
 ### Workflow Progress
 
 ```
-▶ Starting workflow 'pull_request_review' at node 'analyze'
-  ● Node 'analyze' — 4 tools, max 10 turns
-  ⇢ Transition → 'decide'
-  ● Node 'decide' — 0 tools, max 3 turns
-  ⇢ Signal 'approve' → moving to 'approve'
-✓ Workflow complete. Path: analyze → decide → approve → report
+▶ Starting workflow 'project-kickoff' at node 'clarify'
+  ● Node 'clarify' — 0 tools, max 3 turns
+  ⇢ Transition → 'research'
+  ● Node 'research' — 3 tools, max 10 turns
+  ⇢ Signal 'ready' → moving to 'design'
+  || Parallel node 'design' — 4 branches
+  |  Branch 'architecture': starting (1 tools, max 6 turns)
+  |  Branch 'dependencies': starting (1 tools, max 5 turns)
+  |  Branch 'security': approved
+  |  Branch 'security': starting (1 tools, max 5 turns)
+  |  Branch 'testing': starting (1 tools, max 5 turns)
+  |  Branch 'architecture': completed (4 turns)
+  |  Branch 'testing': completed (3 turns)
+  |  Branch 'dependencies': completed (3 turns)
+  |  Branch 'security': completed (4 turns)
+  || All branches complete → 'scaffold'
+  ● Node 'scaffold' — 4 tools, max 15 turns
+✓ Workflow complete. Path: clarify → research → design → scaffold
 ```
 
 ---
@@ -334,37 +392,95 @@ uv run agenttree scheduler stop
 
 ## Skills
 
-Skills are **on-demand knowledge** loaded from markdown files with YAML frontmatter.
+Skills are **folder-per-skill** packages with a `SKILL.md` entry point and optional supporting files for **progressive disclosure**. The agent loads the main instructions first, then reads detailed references on demand.
+
+### Structure
+
+```
+.agenttree/skills/
+  code-review/
+    SKILL.md              # main instructions (loaded first)
+    checklist.md          # detailed checklist (loaded on demand)
+  security-audit/
+    SKILL.md              # main instructions
+    owasp.md              # OWASP checklist (loaded on demand)
+  coding-standards/
+    SKILL.md              # main instructions
+    python.md             # Python-specific conventions
+    typescript.md         # TypeScript-specific conventions
+```
+
+This project includes 3 skills in [`.agenttree/skills/`](.agenttree/skills/):
+
+| Skill | Description | Supporting Files | Used by |
+|-------|-------------|-----------------|---------|
+| [`coding-standards`](.agenttree/skills/coding-standards/SKILL.md) | Coding standards checklist | `python.md`, `typescript.md` | Global (all nodes) |
+| [`code-review`](.agenttree/skills/code-review/SKILL.md) | Quality review patterns | `checklist.md` | `architecture` branch |
+| [`security-audit`](.agenttree/skills/security-audit/SKILL.md) | Security vulnerability audit | `owasp.md` | `security` branch |
+
+### How Progressive Disclosure Works
+
+1. Agent calls `skill(name="code-review")` → gets SKILL.md content + list of supporting files
+2. SKILL.md says *"For the full checklist, read checklist.md"*
+3. Agent calls `skill(name="code-review", file="checklist.md")` → gets detailed checklist
+4. Only the content needed right now is loaded into context
+
+### SKILL.md Format
 
 ```markdown
 ---
 name: code-review
-description: Review code for correctness and style
+description: Code quality review — identify patterns and anti-patterns
 ---
 
-Review the code changes for:
-1. Correctness — does the logic do what's intended?
-2. Style — does it follow project conventions?
-3. Edge cases — are boundary conditions handled?
+# Code Review
+
+When performing a code review, follow these steps...
+
+For the full quality checklist, read [checklist.md](checklist.md).
 ```
 
-Place in `~/.agenttree/skills/` or `<project>/.agenttree/skills/`. List with `/skills`, load via the `skill` tool.
+### Scoping
+
+Skills can be scoped per-node or per-branch in workflows:
+```yaml
+global_skills: [coding-standards]     # available in every node
+
+nodes:
+  review:
+    parallel:
+      branches:
+        quality:
+          skills: [code-review]       # only this branch gets code-review
+```
+
+Place in `~/.agenttree/skills/` or `<project>/.agenttree/skills/`. Legacy flat `.md` files are also supported. List with `/skills`, load via the `skill` tool.
 
 ---
 
 ## Hooks
 
-Lifecycle callbacks that fire before or after tool execution.
+Lifecycle callbacks that fire before or after tool execution. Hooks can be defined globally (in `settings.json`), at the workflow level (`global_hooks`), or per-node/branch:
 
+```yaml
+# Workflow-level hooks (fire for all nodes)
+global_hooks:
+  - type: command
+    match: { event: workflow_start }
+    command: "echo 'workflow started' >> /tmp/hooks.log"
+
+nodes:
+  tests:
+    hooks:   # Node-level hook (only fires within this node)
+      - type: command
+        match: { event: after_tool_use, tool_name: bash }
+        command: "echo 'bash executed in tests' >> /tmp/hooks.log"
+```
+
+Settings-level hooks in `settings.json`:
 ```json
 {
   "hooks": [
-    {
-      "type": "command",
-      "match": { "event": "after_tool_use", "tool_name": "bash" },
-      "command": "echo 'bash was called'",
-      "timeout": 10
-    },
     {
       "type": "http",
       "match": { "event": "before_tool_use" },
@@ -379,6 +495,8 @@ Lifecycle callbacks that fire before or after tool execution.
 |-----------|-----------|----------|
 | `command` | Shell command with payload on stdin | Logging, notifications, auditing |
 | `http` | HTTP POST with JSON payload | External integrations, webhooks |
+
+Hooks are merged from all levels: settings → workflow globals → node/branch. Errors are logged but never block execution.
 
 ---
 
@@ -525,7 +643,7 @@ Create `<project>/.agenttree/plugins/my-plugin/plugin.json` with skills, hooks, 
 
 | Suite | Tests | Status |
 |-------|-------|--------|
-| Skills (registry + tool) | 10 | All passing |
+| Skills (registry + tool + progressive disclosure) | 20 | All passing |
 | Tasks (manager + store) | 9 | All passing |
 | Hooks (registry + executor) | 7 | All passing |
 | Cron (scheduler + store) | 8 | All passing |
@@ -535,8 +653,14 @@ Create `<project>/.agenttree/plugins/my-plugin/plugin.json` with skills, hooks, 
 | Plugins (loader) | 4 | All passing |
 | Memory (store) | 5 | All passing |
 | Workflow (evaluator + graph + types) | 44 | All passing |
+| Workflow (node scoping) | 8 | All passing |
+| Workflow (parallel models) | 14 | All passing |
+| Workflow (engine parallel) | 10 | All passing |
+| Workflow (HITL broker) | 6 | All passing |
+| Workflow (resource validation) | 12 | All passing |
+| Workflow (graph: parallel + scoping) | 11 | All passing |
 | Core (engine + permissions + tools) | 22 | All passing |
-| **Total** | **119** | **All passing** |
+| **Total** | **190** | **All passing** |
 
 ```bash
 uv run pytest -q  # Run all tests
@@ -547,6 +671,14 @@ uv run pytest -q  # Run all tests
 ## Project Structure
 
 ```
+.agenttree/               # Project-level configuration (auto-discovered)
+  workflows/              # YAML workflow definitions
+    project-kickoff.yaml  # Example: all features in one workflow
+  skills/                 # Folder-per-skill with progressive disclosure
+    coding-standards/     # SKILL.md + python.md + typescript.md
+    code-review/          # SKILL.md + checklist.md
+    security-audit/       # SKILL.md + owasp.md
+
 src/agenttree/
   agents/       # Subagent spawning with worktree isolation
   api/          # LLM provider clients (Anthropic, OpenAI)
@@ -566,7 +698,7 @@ src/agenttree/
   tools/        # 21 built-in tools + base abstraction
   triggers/     # Webhook trigger server and registry
   ui/           # React TUI + backend host + print mode
-  workflow/     # Decision tree engine, YAML parser, graph renderer
+  workflow/     # Decision tree engine, parallel branches, HITL, YAML parser
 ```
 
 ---

@@ -1,0 +1,218 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# AgentTree Example: project-kickoff
+#
+# Plan and scaffold a new project from scratch. No existing code needed.
+#
+# Demonstrates ALL workflow features:
+#   - Linear transitions (clarify → research)
+#   - Signal-based branching (research → design or more_research)
+#   - Self-loop (research → research via "dig_deeper")
+#   - Parallel branches with conditions (design node)
+#   - Per-branch tool/skill scoping
+#   - Human-in-the-loop approval gates (requires_approval)
+#   - Workflow-level globals (global_tools, global_skills, global_hooks)
+#   - Terminal node (scaffold)
+#
+# Required skills (folder-per-skill in .agenttree/skills/):
+#   - coding-standards/SKILL.md   (global — available in every node)
+#   - code-review/SKILL.md        (scoped to architecture branch)
+#   - security-audit/SKILL.md     (scoped to security branch)
+#
+# Run with:
+#   /project-kickoff <describe what you want to build>
+#
+# Examples:
+#   /project-kickoff a REST API for a todo app in Python with FastAPI
+#   /project-kickoff a CLI tool that converts CSV to JSON in Rust
+#   /project-kickoff a React dashboard for monitoring server metrics
+# ──────────────────────────────────────────────────────────────────────────────
+
+name: project-kickoff
+description: >
+  Plan and scaffold a new project: clarify requirements, research
+  approach, design in parallel (architecture, dependencies, testing),
+  then generate project files.
+
+start_node: clarify
+
+# ── Workflow-level globals ───────────────────────────────────────────────────
+
+global_tools:
+  - read_file
+  - grep
+
+global_skills:
+  - coding-standards              # .agenttree/skills/coding-standards/SKILL.md
+
+global_hooks:
+  - type: command
+    match: { event: workflow_start }
+    command: "echo \"[$(date -Iseconds)] project-kickoff started\" >> /tmp/agenttree_hooks.log"
+    timeout: 5
+  - type: command
+    match: { event: workflow_end }
+    command: "echo \"[$(date -Iseconds)] project-kickoff ended\" >> /tmp/agenttree_hooks.log"
+    timeout: 5
+
+# global_mcp_servers:              # uncomment if MCP servers are configured
+#   - github
+
+# ── Nodes ────────────────────────────────────────────────────────────────────
+
+nodes:
+
+  # ── LINEAR: unconditional transition ──
+  clarify:
+    prompt: >
+      The user wants to build a new project. Your job is to clarify the
+      requirements by asking yourself (not the user) the right questions:
+
+      1. What is the project? (type: API, CLI, web app, library, etc.)
+      2. What language/framework fits best?
+      3. What are the core features?
+      4. What are the constraints? (performance, platform, team size)
+
+      Analyze the user's description and fill in any gaps with sensible
+      defaults. Write a clear 1-paragraph project brief.
+    max_turns: 3
+    edges:
+      - target: research
+        when: { always: true }
+
+  # ── BRANCH + LOOP: signal decides path, can loop back ──
+  research:
+    prompt: >
+      Research the best approach for this project.
+
+      - Search for similar projects or boilerplate templates
+      - Identify the right libraries and tools
+      - Note any common pitfalls for this type of project
+
+      When done, assess your findings:
+      - Signal "ready" if you have enough to design the project
+      - Signal "dig_deeper" if you need to research more
+
+      In your summary, mention:
+      - "needs_auth" if the project requires authentication
+      - "needs_db" if it requires a database
+      - "has_security_concerns" if there are security considerations
+    tools:
+      - web_fetch
+      - glob
+      - bash
+    max_turns: 10
+    edges:
+      - target: research
+        when: { signal: dig_deeper }
+      - target: design
+        when: { signal: ready }
+
+  # ── PARALLEL: condition-based concurrent branches ──
+  # All matching branches run concurrently.
+  # All triggered branches must complete before transitioning.
+  design:
+    parallel:
+      branches:
+
+        # Always triggers — core architecture design
+        architecture:
+          when: { always: true }
+          prompt: >
+            Design the project architecture:
+
+            1. Directory structure (src/, tests/, config/, etc.)
+            2. Entry points and main modules
+            3. Data flow between components
+            4. Key interfaces and abstractions
+
+            Output a clear directory tree and module descriptions.
+          tools:
+            - web_fetch
+          skills:
+            - code-review             # reuse for architecture patterns
+          max_turns: 6
+
+        # Only triggers if research mentioned "needs_db" or "needs_auth"
+        dependencies:
+          when: { output_matches: "needs_db|needs_auth" }
+          prompt: >
+            Plan the dependencies and configuration:
+
+            1. List required packages with version constraints
+            2. Configuration files needed (pyproject.toml, package.json, etc.)
+            3. Environment variables and secrets management
+            4. Development vs production dependencies
+
+            Output a dependency manifest and config file templates.
+          tools:
+            - web_fetch
+          max_turns: 5
+
+        # Only triggers if research mentioned security concerns
+        security:
+          when: { output_matches: "has_security_concerns" }
+          prompt: >
+            Design the security approach:
+
+            1. Authentication method (JWT, sessions, OAuth)
+            2. Input validation strategy
+            3. Secret management approach
+            4. CORS and rate limiting if applicable
+
+            Output security design decisions with rationale.
+          tools:
+            - web_fetch
+          skills:
+            - security-audit          # .agenttree/skills/security-audit/SKILL.md
+          max_turns: 5
+          requires_approval: true     # HITL: ask user before security design
+
+        # Always triggers — testing strategy
+        testing:
+          when: { always: true }
+          prompt: >
+            Plan the testing strategy:
+
+            1. Test framework selection
+            2. Test directory structure
+            3. Key test cases for core features
+            4. CI configuration (GitHub Actions, etc.)
+
+            Output a testing plan with example test file structure.
+          tools:
+            - web_fetch
+          hooks:                      # per-branch hook
+            - type: command
+              match: { event: after_tool_use, tool_name: web_fetch }
+              command: "echo '[hook] web_fetch used in testing branch' >> /tmp/agenttree_hooks.log"
+              timeout: 5
+          max_turns: 5
+
+      timeout: 300
+
+    edges:
+      - target: scaffold
+        when: { always: true }
+
+  # ── TERMINAL: generate project files ──
+  scaffold:
+    prompt: >
+      Generate the project scaffold based on all the design decisions.
+
+      Create the actual files:
+      1. Project config (pyproject.toml / package.json / Cargo.toml)
+      2. Directory structure with __init__.py / index files
+      3. Main entry point with a minimal working example
+      4. README.md with setup instructions
+      5. .gitignore appropriate for the language
+      6. Test file with one example test
+      7. CI config if planned
+
+      Use write_file and bash to create all files. The user should be
+      able to run the project immediately after this step.
+    tools:
+      - write_file
+      - edit_file
+      - bash
+      - glob
+    max_turns: 15

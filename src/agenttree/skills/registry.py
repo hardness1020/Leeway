@@ -11,14 +11,14 @@ from agenttree.config.paths import get_config_dir
 from agenttree.skills.types import SkillDefinition
 
 
-def _parse_skill_file(path: Path, source: str) -> SkillDefinition | None:
+def _parse_skill_file(path: Path, source: str, dir_path: Path | None = None) -> SkillDefinition | None:
     """Parse a markdown file with optional YAML frontmatter into a SkillDefinition."""
     try:
         raw = path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
         return None
 
-    name = path.stem
+    name = path.stem if dir_path is None else dir_path.name
     description = ""
     content = raw
     metadata: dict[str, Any] = {}
@@ -49,6 +49,7 @@ def _parse_skill_file(path: Path, source: str) -> SkillDefinition | None:
         content=content,
         source=source,  # type: ignore[arg-type]
         path=path,
+        dir_path=dir_path,
         metadata=metadata,
     )
 
@@ -64,8 +65,12 @@ class SkillRegistry:
         self._skills[skill.name] = skill
 
     def get(self, name: str) -> SkillDefinition | None:
-        """Return a skill by name."""
-        return self._skills.get(name)
+        """Return a skill by name (tries exact, lowercase, hyphenated)."""
+        return (
+            self._skills.get(name)
+            or self._skills.get(name.lower())
+            or self._skills.get(name.replace("_", "-"))
+        )
 
     def list_skills(self) -> list[SkillDefinition]:
         """Return all registered skills."""
@@ -73,11 +78,31 @@ class SkillRegistry:
 
 
 def _scan_directory(directory: Path, source: str, registry: SkillRegistry) -> None:
-    """Scan a directory for .md skill files and register them."""
+    """Scan a directory for skill folders and legacy flat .md files.
+
+    Discovery order:
+    1. Folder-per-skill: ``<name>/SKILL.md`` (preferred)
+    2. Legacy flat file: ``<name>.md`` (backward compatible)
+    """
     if not directory.is_dir():
         return
+
+    # Folder-per-skill: <name>/SKILL.md
+    folder_names: set[str] = set()
+    for child in sorted(directory.iterdir()):
+        if child.is_dir() and not child.name.startswith("_"):
+            skill_md = child / "SKILL.md"
+            if skill_md.is_file():
+                skill = _parse_skill_file(skill_md, source, dir_path=child)
+                if skill is not None:
+                    registry.register(skill)
+                    folder_names.add(child.name)
+
+    # Legacy flat files: <name>.md (skip if same name found as folder in this dir)
     for path in sorted(directory.glob("*.md")):
         if path.name.startswith("_"):
+            continue
+        if path.stem in folder_names:
             continue
         skill = _parse_skill_file(path, source)
         if skill is not None:

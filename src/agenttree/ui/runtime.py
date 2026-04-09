@@ -187,6 +187,8 @@ async def build_runtime(
             "task_manager": task_manager,
             "cron_store": cron_store,
             "hook_executor": hook_executor,
+            "hook_registry": hook_registry,
+            "skill_registry": skill_registry,
             "mcp_manager": mcp_manager,
             "trigger_registry": TriggerRegistry(data_dir / "triggers.json"),
             "agent_spawner": AgentSpawner(task_manager=task_manager, cwd=cwd),

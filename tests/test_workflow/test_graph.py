@@ -544,3 +544,135 @@ def test_single_node_workflow():
     graph = render_workflow_graph(wf)
     assert "only start,end" in graph
     assert "Workflow: minimal" in graph
+
+
+# ── Parallel nodes ─────────────────────────────────────────────────────────
+
+
+def _make_parallel_workflow():
+    """Workflow with a parallel node: start → parallel → end."""
+    return WorkflowDefinition(
+        name="parallel_test",
+        description="Test parallel rendering",
+        start_node="assess",
+        nodes={
+            "assess": NodeSpec(
+                prompt="Assess",
+                edges=[EdgeSpec(target="review")],
+            ),
+            "review": NodeSpec(
+                parallel={
+                    "branches": {
+                        "quality": {"prompt": "Review quality"},
+                        "security": {
+                            "when": {"signal": "risk"},
+                            "prompt": "Audit",
+                            "requires_approval": True,
+                        },
+                    },
+                    "timeout": 300,
+                },
+                edges=[EdgeSpec(target="report")],
+            ),
+            "report": NodeSpec(prompt="Final report"),
+        },
+    )
+
+
+def test_parallel_double_border():
+    """Parallel nodes should use double-border characters."""
+    graph = render_workflow_graph(_make_parallel_workflow())
+    assert "╔" in graph
+    assert "╗" in graph
+    assert "╚" in graph
+    assert "╝" in graph
+    assert "║" in graph
+
+
+def test_parallel_tag():
+    """Parallel node should have 'parallel' in its tag."""
+    graph = render_workflow_graph(_make_parallel_workflow())
+    assert "parallel" in graph
+
+
+def test_parallel_branch_names():
+    """Branch names should appear in the parallel box."""
+    graph = render_workflow_graph(_make_parallel_workflow())
+    assert "quality" in graph
+    assert "security" in graph
+
+
+def test_parallel_branch_condition():
+    """Branch conditions should appear in readable format."""
+    graph = render_workflow_graph(_make_parallel_workflow())
+    assert 'if signal "risk"' in graph
+
+
+def test_parallel_approval_marker():
+    """Branches with requires_approval should show [approval]."""
+    graph = render_workflow_graph(_make_parallel_workflow())
+    assert "[requires user approval]" in graph
+
+
+def test_parallel_edges_still_work():
+    """Edges from/to parallel nodes should render arrows."""
+    graph = render_workflow_graph(_make_parallel_workflow())
+    assert "▼" in graph
+    assert "assess" in graph
+    assert "report" in graph
+
+
+def test_parallel_all_nodes_present():
+    graph = render_workflow_graph(_make_parallel_workflow())
+    assert "assess start" in graph
+    assert "review" in graph
+    assert "report end" in graph
+
+
+# ── Node-level scoping indicators ──────────────────────────────────────────
+
+
+def test_node_skills_tag():
+    """Nodes with skills should show s:N in the tag."""
+    wf = WorkflowDefinition(
+        name="scoped",
+        start_node="a",
+        nodes={
+            "a": NodeSpec(
+                prompt="test",
+                skills=["code_review", "security"],
+            ),
+        },
+    )
+    graph = render_workflow_graph(wf)
+    assert "s:2" in graph
+
+
+def test_node_mcp_tag():
+    """Nodes with MCP servers should show mcp:name in the tag."""
+    wf = WorkflowDefinition(
+        name="scoped",
+        start_node="a",
+        nodes={
+            "a": NodeSpec(
+                prompt="test",
+                mcp_servers=["github"],
+            ),
+        },
+    )
+    graph = render_workflow_graph(wf)
+    assert "mcp:github" in graph
+
+
+def test_workflow_list_parallel_count():
+    """Workflow list should show parallel node count."""
+    wf = _make_parallel_workflow()
+    text = render_workflow_list([wf])
+    assert "1 parallel" in text
+
+
+def test_workflow_list_no_parallel():
+    """Workflow list without parallel nodes omits parallel count."""
+    wf = _make_linear_workflow()
+    text = render_workflow_list([wf])
+    assert "parallel" not in text
