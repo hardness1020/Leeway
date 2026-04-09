@@ -1,7 +1,8 @@
 <p align="center">
-  <img src="assets/logo.png" alt="Leeway" width="400"><br>
-  <strong style="font-size:4em;">Leeway</strong>
+  <img src="assets/logo.png" alt="Leeway" width="400">
 </p>
+
+<h1 align="center">Leeway</h1>
 
 <p align="center">
   <strong>Human-defined workflows. AI-powered execution.</strong><br>
