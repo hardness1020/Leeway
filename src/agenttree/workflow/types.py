@@ -94,6 +94,15 @@ class NodeSpec(BaseModel):
     tools: list[str] = Field(default_factory=list, description="Tool whitelist for this node")
     max_turns: int = Field(50, description="Max LLM turns within this node")
     carry_context: bool = Field(True, description="Pass prior node summary as context")
+    interactive: bool = Field(
+        True,
+        description=(
+            "When true, the agent can ask the user questions (ask_user_question) "
+            "and permission prompts are shown. When false, the node runs fully "
+            "automatically — user prompts are suppressed and parallel approval "
+            "gates are auto-approved."
+        ),
+    )
     edges: list[EdgeSpec] = Field(default_factory=list)
     skills: list[str] = Field(default_factory=list, description="Skill names scoped to this node")
     hooks: list[dict[str, Any]] = Field(default_factory=list, description="Node-scoped hook definitions")

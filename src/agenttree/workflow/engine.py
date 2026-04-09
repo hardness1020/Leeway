@@ -53,6 +53,10 @@ class WorkflowResult:
         return "\n".join(parts)
 
 
+PermissionPromptFn = Callable[[str, str], Awaitable[bool]]
+AskUserPromptFn = Callable[[str], Awaitable[str]]
+
+
 @dataclass
 class WorkflowEngine:
     """Execute a workflow definition by driving ``run_query`` per node."""
@@ -66,6 +70,8 @@ class WorkflowEngine:
     max_tokens: int = 16384
     tool_metadata: dict[str, Any] | None = None
     on_progress: ProgressCallback | None = None
+    permission_prompt: PermissionPromptFn | None = None
+    ask_user_prompt: AskUserPromptFn | None = None
 
     # runtime state
     _audit: WorkflowAuditTrail = field(init=False)
@@ -233,6 +239,10 @@ class WorkflowEngine:
                 )
                 system_prompt = self._build_node_prompt(current_name, carry_forward)
 
+                # interactive: false → suppress user interaction
+                node_ask = self.ask_user_prompt if node.interactive else None
+                node_perm = self.permission_prompt if node.interactive else None
+
                 context = QueryContext(
                     api_client=self.api_client,
                     tool_registry=scoped_registry,
@@ -243,6 +253,8 @@ class WorkflowEngine:
                     max_tokens=self.max_tokens,
                     max_turns=node.max_turns,
                     tool_metadata=scoped_metadata,
+                    permission_prompt=node_perm,
+                    ask_user_prompt=node_ask,
                 )
 
                 messages: list[ConversationMessage] = [
@@ -507,9 +519,9 @@ class WorkflowEngine:
                 "No branches triggered.",
             )
 
-        # HITL broker for multiplexed user interaction
-        ask_user = (self.tool_metadata or {}).get("ask_user_prompt")
-        broker = HitlBroker(upstream_ask=ask_user)
+        # HITL broker — suppressed when interactive: false
+        upstream_ask = self.ask_user_prompt if node.interactive else None
+        broker = HitlBroker(upstream_ask=upstream_ask)
 
         # Check approval gates
         results: dict[str, BranchResult] = dict(skipped)
@@ -634,6 +646,7 @@ class WorkflowEngine:
             max_tokens=self.max_tokens,
             max_turns=branch.max_turns,
             tool_metadata=scoped_metadata,
+            permission_prompt=self.permission_prompt,
             ask_user_prompt=ask_user_prompt,
         )
 

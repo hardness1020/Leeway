@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Awaitable, Callable
@@ -145,18 +147,6 @@ async def build_runtime(
     plugin_loader = PluginLoader(cwd)
     plugin_loader.load_all(skill_registry, hook_registry)
 
-    workflow_registry = load_workflow_registry(cwd)
-    if workflow_registry.list_workflows():
-        tool_registry.register(
-            WorkflowTool(
-                workflow_registry=workflow_registry,
-                api_client=resolved_api_client,
-                permission_checker=PermissionChecker(settings.permission),
-                model=settings.model,
-                max_tokens=settings.max_tokens,
-            )
-        )
-
     provider = detect_provider(settings)
     app_state = AppStateStore(
         AppState(
@@ -170,8 +160,22 @@ async def build_runtime(
             fast_mode=settings.fast_mode,
             effort=settings.effort,
             passes=settings.passes,
+            session_start_ms=time.time() * 1000,
         )
     )
+
+    workflow_registry = load_workflow_registry(cwd)
+    if workflow_registry.list_workflows():
+        tool_registry.register(
+            WorkflowTool(
+                workflow_registry=workflow_registry,
+                api_client=resolved_api_client,
+                permission_checker=PermissionChecker(settings.permission),
+                model=settings.model,
+                max_tokens=settings.max_tokens,
+                on_progress=_make_workflow_progress(app_state),
+            )
+        )
 
     engine = QueryEngine(
         api_client=resolved_api_client,
@@ -224,6 +228,7 @@ def sync_app_state(bundle: RuntimeBundle) -> None:
     """Refresh UI state from current settings."""
     settings = load_settings()
     provider = detect_provider(settings)
+    usage = bundle.engine.total_usage
     bundle.app_state.set(
         model=settings.model,
         permission_mode=settings.permission.mode.value,
@@ -235,7 +240,69 @@ def sync_app_state(bundle: RuntimeBundle) -> None:
         fast_mode=settings.fast_mode,
         effort=settings.effort,
         passes=settings.passes,
+        input_tokens=usage.input_tokens,
+        output_tokens=usage.output_tokens,
     )
+
+
+# ---------------------------------------------------------------------------
+# Workflow progress → AppState bridge
+# ---------------------------------------------------------------------------
+
+_RE_START = re.compile(r"▶ Starting workflow '([^']+)' at node '([^']+)'")
+_RE_NODE = re.compile(r"● Node '([^']+)'")
+_RE_PARALLEL = re.compile(r"\|\| Parallel node '([^']+)'")
+_RE_BRANCH_START = re.compile(r"\|  Branch '([^']+)': starting")
+_RE_BRANCH_DONE = re.compile(r"\|  Branch '([^']+)': (?:completed|failed|timed out)")
+_RE_COMPLETE = re.compile(r"✓ Workflow '([^']+)' complete")
+
+
+def _make_workflow_progress(app_state: AppStateStore) -> Callable[[str], Awaitable[None]]:
+    """Return an async callback that updates AppState from workflow progress messages."""
+
+    async def _on_progress(message: str) -> None:
+        m = _RE_START.search(message)
+        if m:
+            app_state.set(
+                workflow_name=m.group(1),
+                workflow_node=m.group(2),
+                workflow_parallel_branches=[],
+            )
+            return
+
+        m = _RE_NODE.search(message)
+        if m:
+            app_state.set(workflow_node=m.group(1), workflow_parallel_branches=[])
+            return
+
+        m = _RE_PARALLEL.search(message)
+        if m:
+            app_state.set(workflow_node=m.group(1), workflow_parallel_branches=[])
+            return
+
+        m = _RE_BRANCH_START.search(message)
+        if m:
+            branches = list(app_state.get().workflow_parallel_branches)
+            branches.append(m.group(1))
+            app_state.set(workflow_parallel_branches=branches)
+            return
+
+        m = _RE_BRANCH_DONE.search(message)
+        if m:
+            branches = [b for b in app_state.get().workflow_parallel_branches if b != m.group(1)]
+            app_state.set(workflow_parallel_branches=branches)
+            return
+
+        m = _RE_COMPLETE.search(message)
+        if m:
+            app_state.set(
+                workflow_name="",
+                workflow_node="",
+                workflow_parallel_branches=[],
+            )
+            return
+
+    return _on_progress
 
 
 # ---------------------------------------------------------------------------
@@ -486,6 +553,12 @@ async def _dispatch_command(
             await print_system(f"Usage: /{wf_name} <context describing what to work on>")
             return True, True
 
+        state_progress = _make_workflow_progress(bundle.app_state)
+
+        async def _progress_both(msg: str) -> None:
+            await state_progress(msg)
+            await print_system(msg)
+
         engine = WorkflowEngine(
             workflow=defn,
             api_client=bundle.api_client,
@@ -494,7 +567,10 @@ async def _dispatch_command(
             cwd=Path(bundle.cwd),
             model=bundle.app_state.get().model,
             max_tokens=load_settings().max_tokens,
-            on_progress=print_system,
+            tool_metadata=bundle.engine._tool_metadata,
+            on_progress=_progress_both,
+            permission_prompt=bundle.engine._permission_prompt,
+            ask_user_prompt=bundle.engine._ask_user_prompt,
         )
         result = await engine.execute(user_context=args)
         await print_system(result.format_output())
@@ -531,7 +607,13 @@ async def handle_line(
     )
     # Inject workflow progress callback so LLM-invoked workflows emit progress
     if bundle.engine._tool_metadata is not None:
-        bundle.engine._tool_metadata["workflow_progress"] = print_system
+        state_progress = _make_workflow_progress(bundle.app_state)
+
+        async def _progress_both(msg: str) -> None:
+            await state_progress(msg)
+            await print_system(msg)
+
+        bundle.engine._tool_metadata["workflow_progress"] = _progress_both
     async for event in bundle.engine.submit_message(line):
         await render_event(event)
     sync_app_state(bundle)

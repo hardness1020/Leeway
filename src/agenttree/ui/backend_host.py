@@ -7,6 +7,7 @@ import contextlib
 import json
 import os
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass
 from uuid import uuid4
 
@@ -49,6 +50,7 @@ class ReactBackendHost:
         self._busy = False
         self._running = True
         self._current_task: asyncio.Task | None = None
+        self._unsubscribe_state: Callable[[], None] | None = None
 
     async def run(self) -> int:
         self._bundle = await build_runtime(
@@ -62,6 +64,13 @@ class ReactBackendHost:
             ask_user_prompt=self._ask_question,
         )
         await start_runtime(self._bundle)
+
+        # Push state changes to frontend in real-time (e.g. during workflow execution)
+        def _on_state_change(new_state) -> None:
+            asyncio.ensure_future(self._emit(BackendEvent.status_snapshot(state=new_state)))
+
+        self._unsubscribe_state = self._bundle.app_state.subscribe(_on_state_change)
+
         await self._emit(BackendEvent.ready(self._bundle.app_state.get(), commands=get_command_names(self._bundle.cwd)))
         await self._emit(BackendEvent.status_snapshot(state=self._bundle.app_state.get()))
 
@@ -109,6 +118,8 @@ class ReactBackendHost:
                 self._busy = True
                 self._current_task = asyncio.create_task(self._run_line(line))
         finally:
+            if self._unsubscribe_state is not None:
+                self._unsubscribe_state()
             if self._current_task and not self._current_task.done():
                 self._current_task.cancel()
                 with contextlib.suppress(asyncio.CancelledError):

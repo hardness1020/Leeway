@@ -90,6 +90,12 @@ def _state_payload(state: AppState) -> dict[str, Any]:
         "fast_mode": state.fast_mode,
         "effort": state.effort,
         "passes": state.passes,
+        "input_tokens": state.input_tokens,
+        "output_tokens": state.output_tokens,
+        "session_start_ms": state.session_start_ms,
+        "workflow_name": state.workflow_name,
+        "workflow_node": state.workflow_node,
+        "workflow_parallel_branches": state.workflow_parallel_branches,
     }
 
 

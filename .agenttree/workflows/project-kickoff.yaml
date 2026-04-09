@@ -62,19 +62,25 @@ global_hooks:
 nodes:
 
   # ── LINEAR: unconditional transition ──
+  # Set interactive: false to run this node fully automatically
+  # (the agent will infer requirements instead of asking the user).
   clarify:
     prompt: >
-      The user wants to build a new project. Your job is to clarify the
-      requirements by asking yourself (not the user) the right questions:
+      The user wants to build a new project. Your job is to understand
+      their requirements clearly. Use the ask_user_question tool to
+      clarify anything ambiguous:
 
       1. What is the project? (type: API, CLI, web app, library, etc.)
-      2. What language/framework fits best?
-      3. What are the core features?
-      4. What are the constraints? (performance, platform, team size)
+      2. What language/framework do they prefer?
+      3. What are the core features they need?
+      4. Any constraints? (performance, platform, team size)
 
-      Analyze the user's description and fill in any gaps with sensible
-      defaults. Write a clear 1-paragraph project brief.
-    max_turns: 3
+      If the user's description is already detailed enough, proceed
+      without asking. Write a clear 1-paragraph project brief.
+    tools:
+      - ask_user_question
+    interactive: true              # true = ask user, false = run automatically
+    max_turns: 5
     edges:
       - target: research
         when: { always: true }
