@@ -128,16 +128,23 @@ uv run leeway
 # Or run a single prompt
 uv run leeway -p "explain this codebase"
 
+# Use different models
+uv run leeway --model claude-opus-4-6
+
 # Use OpenAI-compatible provider
 uv run leeway --api-format openai --base-url https://api.openai.com/v1
 ```
+
+<p align="center">
+  <img src="assets/agent_start.png" alt="Leeway CLI" width="600">
+</p>
 
 ### Try the Example Workflow
 
 ```bash
 # Health check on any codebase — no input needed, low token usage
 uv run leeway
-> /code-health
+> /code-health start
 ```
 
 ---
@@ -337,6 +344,8 @@ Top-level fields in the YAML file:
 
 All conditions support `negate: true` to invert the match.
 
+**Turn-budget awareness:** For nodes with signal-based edges, the engine automatically tells the LLM how many turns it has and injects an urgent reminder when 2 turns remain. This prevents the LLM from exhausting its turn budget on investigation without signalling a decision.
+
 ### Edge Properties
 
 | Property | Default | Description |
@@ -366,21 +375,22 @@ The `parallel` block itself also accepts a `timeout` (default `600` seconds) for
 
 ```
 ▶ Starting workflow 'code-health' at node 'scan'
-  ● Node 'scan' — 2 tools, max 3 turns
-  ⇢ Transition → 'triage'
-  ● Node 'triage' — 2 tools, max 4 turns
-  ⇢ Signal 'ready' → moving to 'review'
+  ● Node 'scan'
+    ⇢ Transition → 'triage'
+  ● Node 'triage'
+    ⇢ Signal 'ready' → moving to 'review'
   || Parallel node 'review' — 3 branches
-  |  Branch 'quality': starting (1 tools, max 3 turns)
+  |  Branch 'quality': starting
   |  Branch 'security': approved
-  |  Branch 'security': starting (1 tools, max 3 turns)
-  |  Branch 'docs': starting (1 tools, max 3 turns)
-  |  Branch 'quality': completed (2 turns)
-  |  Branch 'docs': completed (2 turns)
-  |  Branch 'security': completed (3 turns)
+  |  Branch 'security': starting
+  |  Branch 'docs': starting
+  |  Branch 'quality': completed
+  |  Branch 'docs': completed
+  |  Branch 'security': completed
   || All branches complete → 'report'
-  ● Node 'report' — 0 tools, max 2 turns
-✓ Workflow complete. Path: scan → triage → review → report
+  ● Node 'report' (terminal)
+
+✓ Workflow 'code-health' complete. Path: scan → triage → review → report
 ```
 
 ---

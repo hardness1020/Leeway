@@ -229,7 +229,7 @@ class WorkflowEngine:
                 # --- Sequential node path ---
                 tag = " (terminal)" if is_terminal else ""
                 await self._emit_progress(
-                    f"  ● Node '{current_name}'{tag} — {len(node.tools)} tools, max {node.max_turns} turns"
+                    f"  ● Node '{current_name}'{tag}"
                 )
 
                 valid_signals = self.workflow.signal_decisions_for_node(current_name)
@@ -243,6 +243,16 @@ class WorkflowEngine:
                 node_ask = self.ask_user_prompt if node.interactive else None
                 node_perm = self.permission_prompt if node.interactive else None
 
+                # Build turn-budget warning for signal-dependent nodes
+                _budget_warning = None
+                if valid_signals:
+                    _budget_warning = (
+                        "URGENT: You are about to run out of turns. "
+                        "You MUST call `workflow_signal` NOW with one of: "
+                        + ", ".join(f"'{s}'" for s in valid_signals)
+                        + ". Use your best judgement based on what you have gathered so far."
+                    )
+
                 context = QueryContext(
                     api_client=self.api_client,
                     tool_registry=scoped_registry,
@@ -255,6 +265,7 @@ class WorkflowEngine:
                     tool_metadata=scoped_metadata,
                     permission_prompt=node_perm,
                     ask_user_prompt=node_ask,
+                    turn_budget_warning=_budget_warning,
                 )
 
                 messages: list[ConversationMessage] = [
@@ -299,14 +310,14 @@ class WorkflowEngine:
                     decision = signal_tool.captured.decision
                     if next_name:
                         await self._emit_progress(
-                            f"  ⇢ Signal '{decision}' → moving to '{next_name}'"
+                            f"    ⇢ Signal '{decision}' → moving to '{next_name}'"
                         )
                     else:
                         await self._emit_progress(
-                            f"  ⇢ Signal '{decision}' — no matching transition"
+                            f"    ⇢ Signal '{decision}' — no matching transition"
                         )
                 elif next_name:
-                    await self._emit_progress(f"  ⇢ Transition → '{next_name}'")
+                    await self._emit_progress(f"    ⇢ Transition → '{next_name}'")
 
                 if signal_tool.captured and signal_tool.captured.summary:
                     carry_forward = signal_tool.captured.summary
@@ -329,6 +340,7 @@ class WorkflowEngine:
         self._audit.final_output = carry_forward
         self._audit.mark_complete()
         path = " → ".join(self._audit.path_taken)
+        await self._emit_progress("")
         await self._emit_progress(
             f"✓ Workflow '{self.workflow.name}' complete. Path: {path}"
         )
@@ -457,6 +469,12 @@ class WorkflowEngine:
                 parts.append(f"- `{sig}`")
             parts.append("")
             parts.append(
+                f"IMPORTANT: You have a maximum of {node.max_turns} turns (tool calls) for this step. "
+                "You MUST call `workflow_signal` before running out of turns. "
+                "Plan your work to leave at least 1 turn for signalling."
+            )
+            parts.append("")
+            parts.append(
                 "Do NOT proceed beyond the scope of this step. "
                 "Do NOT invent steps outside this workflow."
             )
@@ -557,7 +575,7 @@ class WorkflowEngine:
         tasks_map: dict[str, asyncio.Task[BranchResult]] = {}
         for name, branch in branches_to_run.items():
             await self._emit_progress(
-                f"  |  Branch '{name}': starting ({len(branch.tools)} tools, max {branch.max_turns} turns)"
+                f"  |  Branch '{name}': starting"
             )
             tasks_map[name] = asyncio.create_task(_run_branch(name, branch))
 
@@ -575,9 +593,14 @@ class WorkflowEngine:
             if task in done:
                 try:
                     results[name] = task.result()
-                    await self._emit_progress(
-                        f"  |  Branch '{name}': completed ({results[name].turns_used} turns)"
-                    )
+                    if results[name].success:
+                        await self._emit_progress(
+                            f"  |  Branch '{name}': completed"
+                        )
+                    else:
+                        await self._emit_progress(
+                            f"  |  Branch '{name}': failed — {results[name].error}"
+                        )
                 except Exception as exc:
                     results[name] = BranchResult(
                         branch_name=name, success=False, error=str(exc),

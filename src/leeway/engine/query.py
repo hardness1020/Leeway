@@ -46,6 +46,8 @@ class QueryContext:
     ask_user_prompt: AskUserPrompt | None = None
     max_turns: int = 200
     tool_metadata: dict[str, object] | None = None
+    turn_budget_warning: str | None = None
+    """If set, inject this message as a user reminder when 2 turns remain."""
 
 
 async def run_query(
@@ -59,8 +61,19 @@ async def run_query(
     )
 
     compact_state = AutoCompactState()
+    _budget_warned = False
 
-    for _ in range(context.max_turns):
+    for turn_idx in range(context.max_turns):
+        # --- turn budget warning ---
+        if (
+            not _budget_warned
+            and context.turn_budget_warning
+            and turn_idx >= context.max_turns - 2
+        ):
+            _budget_warned = True
+            messages.append(
+                ConversationMessage.from_user_text(context.turn_budget_warning)
+            )
         # --- auto-compact check before calling the model ---------------
         messages, was_compacted = await auto_compact_if_needed(
             messages,

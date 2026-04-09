@@ -49,9 +49,11 @@ nodes:
   # ── LINEAR: ask scope then scan ──
   scan:
     prompt: >
-      Ask the user what they want checked. Examples: a specific directory,
-      a file pattern, or "everything". Then scan that scope with glob
-      and grep. Output: language, framework, file count, test presence.
+      Ask the user ONE question about what they want checked (e.g. a
+      specific directory, a file pattern, or "everything"). Then run
+      ONE glob and ONE bash command to get a structural overview.
+      Output: language, framework, approximate file count, test presence.
+      Do not make more than 3 tool calls total.
     tools:
       - ask_user_question
       - glob
@@ -65,13 +67,15 @@ nodes:
   # ── BRANCH + LOOP: decide what needs attention ──
   triage:
     prompt: >
-      Based on the scan, assess the codebase health.
-      Check for: missing tests, no README, large files, TODO/FIXME counts.
+      Assess codebase health using a single bash command that checks
+      all of: README existence, test file count, TODO/FIXME count,
+      and largest files (e.g. combine with && or ;).
+      Do not use more than 2 tool calls before signalling.
 
-      Signal "dig_deeper" if you need to inspect more files.
+      Signal "dig_deeper" if critical info is missing.
       Signal "ready" when you have enough to review.
 
-      In your summary, include these markers if applicable:
+      In your signal summary, include these markers if applicable:
       - "has_security_risk" if you see credentials, secrets, or unsafe patterns
       - "missing_docs" if README is absent or key modules lack docstrings
     tools:
@@ -94,8 +98,10 @@ nodes:
         quality:
           when: { always: true }
           prompt: >
-            Review code quality: check naming conventions, file organization,
-            and common anti-patterns. Keep it to top 3 findings.
+            Based on the context from prior steps, list top 3 code quality
+            findings (naming, file organization, anti-patterns).
+            Only use a tool if the prior context is insufficient.
+            Prefer writing your analysis directly without tool calls.
           tools:
             - glob
           skills:
@@ -106,8 +112,10 @@ nodes:
         security:
           when: { output_matches: "has_security_risk" }
           prompt: >
-            Audit for security issues: hardcoded secrets, injection risks,
-            missing input validation. List findings with severity.
+            Based on context from prior steps, list security findings
+            (hardcoded secrets, injection risks, missing validation)
+            with severity. Only use a tool if prior context is insufficient.
+            Prefer writing your analysis directly without tool calls.
           tools:
             - glob
           skills:
@@ -119,8 +127,10 @@ nodes:
         docs:
           when: { output_matches: "missing_docs" }
           prompt: >
-            Check documentation gaps: missing README sections, undocumented
-            public APIs, missing type hints. List top 3 gaps.
+            Based on context from prior steps, list top 3 documentation
+            gaps (missing README sections, undocumented APIs, missing
+            type hints). Only use a tool if prior context is insufficient.
+            Prefer writing your analysis directly without tool calls.
           tools:
             - glob
           hooks:
@@ -144,6 +154,7 @@ nodes:
       ## Findings (bullet list, max 5 items)
       ## Recommended Actions (bullet list, max 3 items)
 
-      Be concise. Do not create any files.
+      Be concise. Do not create any files. Do not call any tools —
+      just write the report from the context you already have.
     carry_context: true
     max_turns: 2
