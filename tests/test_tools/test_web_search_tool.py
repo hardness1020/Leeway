@@ -64,6 +64,8 @@ async def test_web_search_you_provider_success(monkeypatch):
     assert not result.is_error
     assert "Result A" in result.output
     assert "https://api.ydc-index.io/v1/search" in mock_client.called[0]["url"]
+    assert mock_client.called[0]["params"]["query"] == "test"
+    assert mock_client.called[0]["params"]["count"] == 1
 
 
 @pytest.mark.asyncio

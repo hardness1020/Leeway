@@ -64,7 +64,7 @@ class WebSearchTool(BaseTool):
                 async with httpx.AsyncClient(timeout=15.0) as client:
                     resp = await client.get(
                         "https://api.ydc-index.io/v1/search",
-                        params={"query": args.query, "num_web_results": args.num_results},
+                        params={"query": args.query, "count": args.num_results},
                         headers={"X-API-Key": api_key},
                     )
                     resp.raise_for_status()
