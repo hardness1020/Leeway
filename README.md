@@ -60,6 +60,18 @@ Five things that are hard to get from a node-graph workflow tool:
 | 4 | **Turn budget with urgency injection** | For signal-based nodes, the engine tells the LLM how many turns it has and injects an *urgent reminder* at 2 turns remaining, listing the exact signals to call. No silent cost runaway. |
 | 5 | **Auto-compaction (microcompact + LLM summary)** | When context fills, Leeway first clears stale tool-result bodies in place. If that's not enough, it summarizes older messages via LLM while preserving the last 6. Fully transparent: no manual `/compact`, no lost context mid-workflow. |
 
+### Signal validation
+
+At every branching node, the model picks which path the workflow should take next. The obvious concern: what if it picks a path that doesn't exist? Leeway catches this at the runtime layer, not via prompt discipline:
+
+- **Each node declares its allowed choices up front**, as part of the node's outgoing paths. No global list, no free-form routing. An `assess` node might allow only `needs_investigation` or `well_documented`; the same label on a different node can mean something completely different.
+- **The model's decision tool only accepts those choices.** If it picks anything else, the tool call returns an error listing the valid options, and the model tries again. Typos and made-up names fail fast instead of quietly leading the workflow down the wrong branch.
+- **A legal choice with no matching path halts the run.** If the model picks an option that's valid in theory but no real path is wired up for it, the engine stops and logs it rather than drifting.
+
+This does not stop the model from confidently picking a *legal but wrong* option. What the graph gives you in that case is bounded damage: the wrong branch still runs inside its own restricted tool set and validated inputs, and the whole path is auditable after the fact.
+
+See [docs/workflows.md](docs/workflows.md#runtime-behavior) for the full mechanics.
+
 ---
 
 ## Quick Start
