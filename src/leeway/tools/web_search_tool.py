@@ -62,17 +62,25 @@ class WebSearchTool(BaseTool):
 
             try:
                 async with httpx.AsyncClient(timeout=15.0) as client:
+                    params = {"query": args.query, "num_web_results": args.num_results}
                     resp = await client.get(
                         "https://api.ydc-index.io/v1/search",
-                        params={"query": args.query, "count": args.num_results},
+                        params=params,
                         headers={"X-API-Key": api_key},
                     )
+                    if resp.status_code == 422:
+                        # Compatibility fallback for endpoints expecting `count`.
+                        resp = await client.get(
+                            "https://api.ydc-index.io/v1/search",
+                            params={"query": args.query, "count": args.num_results},
+                            headers={"X-API-Key": api_key},
+                        )
                     resp.raise_for_status()
             except Exception as exc:
                 return ToolResult(output=f"you.com search failed: {exc}", is_error=True)
 
             data = resp.json()
-            results = data.get("hits", [])
+            results = data.get("hits") or data.get("results", {}).get("web", [])
         else:
             api_key = os.environ.get("BRAVE_SEARCH_API_KEY", "")
             if not api_key:
