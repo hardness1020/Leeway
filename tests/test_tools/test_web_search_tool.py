@@ -50,14 +50,16 @@ async def test_web_search_you_provider_success(monkeypatch):
 
     mock_client = _MockAsyncClient(
         {
-            "hits": [
-                {
-                    "title": "Result A",
-                    "url": "https://example.com/a",
-                    "snippets": ["Snippet A"],
-                    "description": "Fallback description",
-                }
-            ]
+            "results": {
+                "web": [
+                    {
+                        "title": "Result A",
+                        "url": "https://example.com/a",
+                        "snippets": ["Snippet A"],
+                        "description": "Fallback description",
+                    }
+                ]
+            }
         }
     )
 
@@ -69,7 +71,7 @@ async def test_web_search_you_provider_success(monkeypatch):
     assert "Result A" in result.output
     assert "https://api.ydc-index.io/v1/search" in mock_client.called[0]["url"]
     assert mock_client.called[0]["params"]["query"] == "test"
-    assert mock_client.called[0]["params"]["num_web_results"] == 1
+    assert mock_client.called[0]["params"]["count"] == 1
 
 
 @pytest.mark.asyncio
@@ -97,40 +99,3 @@ async def test_web_search_invalid_provider(monkeypatch):
 
     assert result.is_error
     assert "Unsupported WEB_SEARCH_PROVIDER" in result.output
-
-
-@pytest.mark.asyncio
-async def test_web_search_you_provider_fallback_to_count(monkeypatch):
-    tool = WebSearchTool()
-    context = ToolExecutionContext(cwd=Path("."))
-
-    monkeypatch.setenv("WEB_SEARCH_PROVIDER", "you")
-    monkeypatch.setenv("YOU_SEARCH_API_KEY", "test-key")
-
-    mock_client = _MockAsyncClient(
-        responses=[
-            _MockResponse({}, status_code=422),
-            _MockResponse(
-                {
-                    "results": {
-                        "web": [
-                            {
-                                "title": "Result B",
-                                "url": "https://example.com/b",
-                                "snippets": ["Snippet B"],
-                            }
-                        ]
-                    }
-                }
-            ),
-        ]
-    )
-
-    monkeypatch.setattr(httpx, "AsyncClient", lambda timeout=15.0: mock_client)
-
-    result = await tool.execute(WebSearchInput(query="fallback", num_results=2), context)
-
-    assert not result.is_error
-    assert "Result B" in result.output
-    assert mock_client.called[0]["params"] == {"query": "fallback", "num_web_results": 2}
-    assert mock_client.called[1]["params"] == {"query": "fallback", "count": 2}
