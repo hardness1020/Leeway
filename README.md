@@ -23,7 +23,7 @@
 </p>
 
 <p align="center">
-  <img src="assets/agent_start.png" alt="Leeway CLI" width="1000">
+  <video src="https://github.com/user-attachments/assets/fda824d3-0102-44eb-836b-42d3dd5d062f" autoplay loop muted playsinline width="1000"></video>
 </p>
 
 ---
