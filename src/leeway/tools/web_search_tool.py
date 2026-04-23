@@ -1,6 +1,8 @@
-"""Web search tool — search the web via Brave Search API."""
+"""Web search tool — search the web via Brave or you.com Search API."""
 
 from __future__ import annotations
+
+import os
 
 from pydantic import BaseModel, Field
 
@@ -17,8 +19,9 @@ class WebSearchInput(BaseModel):
 class WebSearchTool(BaseTool):
     """Search the web and return results.
 
-    Requires a Brave Search API key configured via
-    ``web_search_api_key`` in settings or ``BRAVE_SEARCH_API_KEY`` env var.
+    Provider selection:
+    - ``WEB_SEARCH_PROVIDER=brave`` (default) requires ``BRAVE_SEARCH_API_KEY``
+    - ``WEB_SEARCH_PROVIDER=you`` requires ``YOU_SEARCH_API_KEY``
     """
 
     name = "web_search"
@@ -39,42 +42,76 @@ class WebSearchTool(BaseTool):
                 is_error=True,
             )
 
-        import os
-
-        api_key = os.environ.get("BRAVE_SEARCH_API_KEY", "")
-        if not api_key:
+        provider = os.environ.get("WEB_SEARCH_PROVIDER", "brave").strip().lower()
+        if provider not in {"brave", "you"}:
             return ToolResult(
-                output=(
-                    "No search API key found. Set BRAVE_SEARCH_API_KEY environment "
-                    "variable or configure web_search_api_key in settings."
-                ),
+                output="Unsupported WEB_SEARCH_PROVIDER. Use 'brave' or 'you'.",
                 is_error=True,
             )
 
-        try:
-            async with httpx.AsyncClient(timeout=15.0) as client:
-                resp = await client.get(
-                    "https://api.search.brave.com/res/v1/web/search",
-                    params={"q": args.query, "count": args.num_results},
-                    headers={
-                        "Accept": "application/json",
-                        "X-Subscription-Token": api_key,
-                    },
+        if provider == "you":
+            api_key = os.environ.get("YOU_SEARCH_API_KEY", "")
+            if not api_key:
+                return ToolResult(
+                    output=(
+                        "No API key found for you.com search. Set YOU_SEARCH_API_KEY "
+                        "or switch WEB_SEARCH_PROVIDER=brave."
+                    ),
+                    is_error=True,
                 )
-                resp.raise_for_status()
-        except Exception as exc:
-            return ToolResult(output=f"Search failed: {exc}", is_error=True)
 
-        data = resp.json()
-        results = data.get("web", {}).get("results", [])
+            try:
+                async with httpx.AsyncClient(timeout=15.0) as client:
+                    params = {"query": args.query, "count": args.num_results}
+                    resp = await client.get(
+                        "https://api.ydc-index.io/v1/search",
+                        params=params,
+                        headers={"X-API-Key": api_key},
+                    )
+                    resp.raise_for_status()
+            except Exception as exc:
+                return ToolResult(output=f"you.com search failed: {exc}", is_error=True)
+
+            data = resp.json()
+            results = data.get("results", {}).get("web", [])
+        else:
+            api_key = os.environ.get("BRAVE_SEARCH_API_KEY", "")
+            if not api_key:
+                return ToolResult(
+                    output=(
+                        "No API key found for Brave search. Set BRAVE_SEARCH_API_KEY "
+                        "or switch WEB_SEARCH_PROVIDER=you with YOU_SEARCH_API_KEY."
+                    ),
+                    is_error=True,
+                )
+
+            try:
+                async with httpx.AsyncClient(timeout=15.0) as client:
+                    resp = await client.get(
+                        "https://api.search.brave.com/res/v1/web/search",
+                        params={"q": args.query, "count": args.num_results},
+                        headers={
+                            "Accept": "application/json",
+                            "X-Subscription-Token": api_key,
+                        },
+                    )
+                    resp.raise_for_status()
+            except Exception as exc:
+                return ToolResult(output=f"Brave search failed: {exc}", is_error=True)
+
+            data = resp.json()
+            results = data.get("web", {}).get("results", [])
+
         if not results:
             return ToolResult(output="No results found.")
 
         lines: list[str] = []
         for i, r in enumerate(results[: args.num_results], 1):
-            title = r.get("title", "")
+            title = r.get("title") or r.get("name", "")
             url = r.get("url", "")
-            desc = r.get("description", "")
+            snippets = r.get("snippets") or []
+            first_snippet = snippets[0] if snippets else ""
+            desc = first_snippet or r.get("description") or r.get("snippet") or ""
             lines.append(f"{i}. {title}\n   {url}\n   {desc}")
 
         return ToolResult(output="\n\n".join(lines))
