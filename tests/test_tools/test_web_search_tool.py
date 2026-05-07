@@ -46,7 +46,7 @@ async def test_web_search_you_provider_success(monkeypatch):
     context = ToolExecutionContext(cwd=Path("."))
 
     monkeypatch.setenv("WEB_SEARCH_PROVIDER", "you")
-    monkeypatch.setenv("YOU_SEARCH_API_KEY", "test-key")
+    monkeypatch.setenv("YDC_API_KEY", "test-key")
 
     mock_client = _MockAsyncClient(
         {
@@ -75,17 +75,33 @@ async def test_web_search_you_provider_success(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_web_search_missing_key_for_you(monkeypatch):
+async def test_web_search_you_provider_without_key(monkeypatch):
     tool = WebSearchTool()
     context = ToolExecutionContext(cwd=Path("."))
 
     monkeypatch.setenv("WEB_SEARCH_PROVIDER", "you")
-    monkeypatch.delenv("YOU_SEARCH_API_KEY", raising=False)
+    monkeypatch.delenv("YDC_API_KEY", raising=False)
+
+    mock_client = _MockAsyncClient(
+        {
+            "results": {
+                "web": [
+                    {
+                        "title": "Result A",
+                        "url": "https://example.com/a",
+                        "description": "Fallback description",
+                    }
+                ]
+            }
+        }
+    )
+    monkeypatch.setattr(httpx, "AsyncClient", lambda timeout=15.0: mock_client)
 
     result = await tool.execute(WebSearchInput(query="test"), context)
 
-    assert result.is_error
-    assert "YOU_SEARCH_API_KEY" in result.output
+    assert not result.is_error
+    assert "Result A" in result.output
+    assert "X-API-Key" not in mock_client.called[0]["headers"]
 
 
 @pytest.mark.asyncio

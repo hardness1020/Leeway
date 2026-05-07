@@ -21,7 +21,8 @@ class WebSearchTool(BaseTool):
 
     Provider selection:
     - ``WEB_SEARCH_PROVIDER=brave`` (default) requires ``BRAVE_SEARCH_API_KEY``
-    - ``WEB_SEARCH_PROVIDER=you`` requires ``YOU_SEARCH_API_KEY``
+    - ``WEB_SEARCH_PROVIDER=you`` supports free-tier unauthenticated search,
+      or set ``YDC_API_KEY`` for authenticated usage
     """
 
     name = "web_search"
@@ -50,23 +51,16 @@ class WebSearchTool(BaseTool):
             )
 
         if provider == "you":
-            api_key = os.environ.get("YOU_SEARCH_API_KEY", "")
-            if not api_key:
-                return ToolResult(
-                    output=(
-                        "No API key found for you.com search. Set YOU_SEARCH_API_KEY "
-                        "or switch WEB_SEARCH_PROVIDER=brave."
-                    ),
-                    is_error=True,
-                )
+            api_key = os.environ.get("YDC_API_KEY", "")
 
             try:
                 async with httpx.AsyncClient(timeout=15.0) as client:
                     params = {"query": args.query, "count": args.num_results}
+                    headers = {"X-API-Key": api_key} if api_key else {}
                     resp = await client.get(
                         "https://api.ydc-index.io/v1/search",
                         params=params,
-                        headers={"X-API-Key": api_key},
+                        headers=headers,
                     )
                     resp.raise_for_status()
             except Exception as exc:
@@ -80,7 +74,7 @@ class WebSearchTool(BaseTool):
                 return ToolResult(
                     output=(
                         "No API key found for Brave search. Set BRAVE_SEARCH_API_KEY "
-                        "or switch WEB_SEARCH_PROVIDER=you with YOU_SEARCH_API_KEY."
+                        "or switch WEB_SEARCH_PROVIDER=you (optionally set YDC_API_KEY)."
                     ),
                     is_error=True,
                 )

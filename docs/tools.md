@@ -24,7 +24,7 @@ export BRAVE_SEARCH_API_KEY=your_brave_key
 
 # Optional provider: you.com Search API
 export WEB_SEARCH_PROVIDER=you
-export YOU_SEARCH_API_KEY=your_you_api_key
+export YDC_API_KEY=your_you_api_key
 ```
 
 Usage in prompts/workflows remains unchanged:
