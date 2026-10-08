@@ -11,7 +11,7 @@ class McpServerConfig(BaseModel):
     """Configuration for an MCP server connection."""
 
     name: str
-    transport: Literal["stdio", "sse"] = "stdio"
+    transport: Literal["stdio", "sse", "streamable_http"] = "stdio"
     command: str | None = None
     args: list[str] = Field(default_factory=list)
     url: str | None = None

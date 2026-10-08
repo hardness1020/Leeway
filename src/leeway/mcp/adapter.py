@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, create_model
+from pydantic import BaseModel, Field, create_model
 
 from leeway.mcp.client import McpClientManager
 from leeway.tools.base import BaseTool, ToolExecutionContext, ToolResult
@@ -20,12 +20,21 @@ def _build_input_model(
 
     fields: dict[str, Any] = {}
     for prop_name, prop_schema in properties.items():
-        python_type = _json_type_to_python(prop_schema.get("type", "string"))
+        # Remote schemas often express optional fields as a nullable anyOf.
+        schema = prop_schema
+        if "anyOf" in schema:
+            variants = [v for v in schema["anyOf"] if v.get("type") != "null"]
+            if len(variants) == 1:
+                schema = variants[0]
+        python_type = _json_type_to_python(schema.get("type", "string"))
         if prop_name in required:
-            fields[prop_name] = (python_type, ...)
+            fields[prop_name] = (python_type, Field(..., description=prop_schema.get("description")))
         else:
             default = prop_schema.get("default")
-            fields[prop_name] = (python_type | None, default)
+            fields[prop_name] = (
+                python_type | None,
+                Field(default, description=prop_schema.get("description")),
+            )
 
     model_name = f"Mcp_{tool_name}_Input"
     return create_model(model_name, **fields)

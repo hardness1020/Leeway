@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import AsyncExitStack
 import logging
 import os
 from typing import Any
@@ -15,7 +16,8 @@ class McpClientManager:
     """Manages connections to one or more MCP servers."""
 
     def __init__(self) -> None:
-        self._sessions: dict[str, Any] = {}  # name -> (client, session) or transport objects
+        self._sessions: dict[str, Any] = {}  # name -> ClientSession
+        self._connections: list[AsyncExitStack] = []
         self._tools: dict[str, list[dict[str, Any]]] = {}  # name -> tool list from server
 
     async def connect_all(self, configs: list[McpServerConfig]) -> None:
@@ -40,73 +42,55 @@ class McpClientManager:
             )
             return
 
-        if config.transport == "stdio":
-            if not config.command:
-                raise ValueError(f"MCP server '{config.name}' requires 'command' for stdio transport")
+        # Sessions run a background receive loop and must stay entered for calls.
+        # Close each session before its transport, in reverse connection order.
+        stack = AsyncExitStack()
+        try:
+            if config.transport == "stdio":
+                if not config.command:
+                    raise ValueError(
+                        f"MCP server '{config.name}' requires 'command' for stdio transport"
+                    )
+                params = StdioServerParameters(
+                    command=config.command,
+                    args=config.args,
+                    env={**os.environ, **config.env},
+                )
+                streams = await stack.enter_async_context(stdio_client(params))
+            elif config.transport == "sse":
+                if not config.url:
+                    raise ValueError(f"MCP server '{config.name}' requires 'url' for sse transport")
+                from mcp.client.sse import sse_client
 
-            env = {**os.environ, **config.env}
-            server_params = StdioServerParameters(
-                command=config.command,
-                args=config.args,
-                env=env,
-            )
+                streams = await stack.enter_async_context(sse_client(config.url))
+            else:
+                if not config.url:
+                    raise ValueError(
+                        f"MCP server '{config.name}' requires 'url' for streamable_http transport"
+                    )
+                from mcp.client.streamable_http import streamablehttp_client
 
-            read_stream, write_stream = await self._start_stdio(server_params)
-            session = ClientSession(read_stream, write_stream)
+                streams = await stack.enter_async_context(
+                    streamablehttp_client(config.url, headers={"User-Agent": "Leeway/0.1.0"})
+                )
+
+            session = await stack.enter_async_context(ClientSession(streams[0], streams[1]))
             await session.initialize()
-            self._sessions[config.name] = session
-
-            # Discover tools
             tools_result = await session.list_tools()
-            self._tools[config.name] = [
+            tools = [
                 {
                     "name": t.name,
                     "description": t.description or "",
-                    "inputSchema": t.inputSchema if hasattr(t, "inputSchema") else {},
+                    "inputSchema": t.inputSchema,
                 }
                 for t in tools_result.tools
             ]
-
-        elif config.transport == "sse":
-            if not config.url:
-                raise ValueError(f"MCP server '{config.name}' requires 'url' for sse transport")
-
-            from mcp.client.sse import sse_client  # noqa: F401
-
-            read_stream, write_stream = await self._start_sse(config.url)
-            session = ClientSession(read_stream, write_stream)
-            await session.initialize()
-            self._sessions[config.name] = session
-
-            tools_result = await session.list_tools()
-            self._tools[config.name] = [
-                {
-                    "name": t.name,
-                    "description": t.description or "",
-                    "inputSchema": t.inputSchema if hasattr(t, "inputSchema") else {},
-                }
-                for t in tools_result.tools
-            ]
-
-    async def _start_stdio(self, params: Any) -> tuple[Any, Any]:
-        """Start a stdio transport. Returns (read_stream, write_stream)."""
-        from mcp.client.stdio import stdio_client
-
-        # stdio_client is an async context manager that yields (read, write)
-        ctx = stdio_client(params)
-        streams = await ctx.__aenter__()
-        # Store the context manager so we can close it later
-        self._sessions[f"_ctx_{id(streams)}"] = ctx
-        return streams
-
-    async def _start_sse(self, url: str) -> tuple[Any, Any]:
-        """Start an SSE transport."""
-        from mcp.client.sse import sse_client
-
-        ctx = sse_client(url)
-        streams = await ctx.__aenter__()
-        self._sessions[f"_ctx_{id(streams)}"] = ctx
-        return streams
+        except BaseException:
+            await stack.aclose()
+            raise
+        self._connections.append(stack)
+        self._sessions[config.name] = session
+        self._tools[config.name] = tools
 
     def discover_tools(self, server_name: str) -> list[dict[str, Any]]:
         """Return the tool list for a connected server."""
@@ -135,22 +119,14 @@ class McpClientManager:
                 parts.append(content.text)
             else:
                 parts.append(str(content))
-        return "\n".join(parts)
+        output = "\n".join(parts)
+        if result.isError:
+            raise RuntimeError(output or f"MCP tool failed: {tool_name}")
+        return output
 
     async def close_all(self) -> None:
         """Close all MCP server connections."""
-        for name, session in list(self._sessions.items()):
-            if name.startswith("_ctx_"):
-                try:
-                    await session.__aexit__(None, None, None)
-                except Exception:
-                    pass
-            else:
-                try:
-                    # ClientSession doesn't always have a close method,
-                    # but the context manager handles cleanup
-                    pass
-                except Exception:
-                    pass
+        while self._connections:
+            await self._connections.pop().aclose()
         self._sessions.clear()
         self._tools.clear()
